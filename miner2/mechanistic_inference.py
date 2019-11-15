@@ -139,8 +139,8 @@ def get_regulon_dictionary(regulons):
     regulon_modules = {}
     df_list = []
 
-    for tf in regulons.keys():
-        for key in regulons[tf].keys():
+    for tf in sorted(regulons.keys()):
+        for key in sorted(regulons[tf].keys()):
             genes = regulons[tf][key]
             id_ = str(len(regulon_modules))
             regulon_modules[id_] = regulons[tf][key]

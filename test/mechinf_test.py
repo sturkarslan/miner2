@@ -96,6 +96,20 @@ class MechinfTest(unittest.TestCase):
         #    json.dump(remixed, outfile)
         self.assertEquals(ref_remixed, remixed)
 
+    def test_get_regulon_dictionary(self):
+        with open('testdata/ref_regulons-001.json') as infile:
+            regulons = json.load(infile)
+        with open('testdata/ref_regulon_modules-001.json') as infile:
+            ref_regulon_modules = json.load(infile)
+        ref_regulon_df = pd.read_csv('testdata/ref_regulon_df-001.csv', index_col=0, header=0)
+
+        regulon_modules, regulon_df = mechinf.get_regulon_dictionary(regulons)
+        # careful ! Regulon_ID comes out as text in regulon_df, but is
+        # integer in ref_regulon_df !!!
+        regulon_df['Regulon_ID'] = pd.to_numeric(regulon_df['Regulon_ID'])
+        self.assertTrue(ref_regulon_df.equals(regulon_df))
+        self.assertEquals(ref_regulon_modules, regulon_modules)
+
 
 if __name__ == '__main__':
     SUITE = []
