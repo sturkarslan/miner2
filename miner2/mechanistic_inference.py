@@ -274,9 +274,9 @@ def remix(df, frequency_clusters):
 
 def get_coexpression_modules(mechanistic_output):
     coexpression_modules = {}
-    for i in mechanistic_output.keys():
+    for i in sorted(mechanistic_output.keys()):
         genes = list(set(numpy.hstack([mechanistic_output[i][key][1]
-                                       for key in mechanistic_output[i].keys()])))
+                                       for key in sorted(mechanistic_output[i].keys())])))
         coexpression_modules[i] = genes
     return coexpression_modules
 
