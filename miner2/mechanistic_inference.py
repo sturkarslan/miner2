@@ -5,6 +5,7 @@ import multiprocessing
 from pkg_resources import Requirement, resource_filename
 import logging
 import json
+from collections import defaultdict
 
 import miner2.coexpression
 
@@ -192,13 +193,7 @@ def get_coregulation_modules(mechanistic_output):
 
 
 def get_regulons(coregulation_modules, min_number_genes=5, freq_threshold=0.333):
-    """TODO: There is still a discrepancy between Python 2 and 3 here"""
     regulons = {}
-    sub_regulons = coregulation_modules['ENSG00000005889']
-    norm_df = coincidence_matrix(sub_regulons, 0.333)
-    with open('sub_regulons-001.json', 'w') as outfile:
-        json.dump(sub_regulons, outfile)
-    norm_df.to_csv('coincidence_matrix-001.csv')
 
     for tf in sorted(coregulation_modules.keys()):
         norm_df = coincidence_matrix(coregulation_modules[tf], freq_threshold)
@@ -285,14 +280,15 @@ def get_coexpression_modules(mechanistic_output):
 Postprocessing functions
 """
 def convert_dictionary(dic, conversion_table):
-    converted = {}
+    conv_dict = defaultdict(list)
+    for pref_name, name in conversion_table.iteritems():
+        conv_dict[pref_name].append(name)
+
+    converted = defaultdict(list)
     for i in dic.keys():
         genes = dic[i]
-        conv_genes = conversion_table[genes]
-        for j in range(len(conv_genes)):
-            if type(conv_genes[j]) is pandas.core.series.Series:
-                conv_genes[j] = conv_genes[j][0]
-        converted[i] = list(conv_genes)
+        for gene in genes:
+            converted[i].extend(conv_dict[gene])
     return converted
 
 

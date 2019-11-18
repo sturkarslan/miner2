@@ -5,8 +5,9 @@ import unittest
 import pandas as pd
 import logging
 import json
+from collections import defaultdict
 
-from miner2 import mechanistic_inference as mechinf
+from miner2 import mechanistic_inference as mechinf, preprocess
 
 MIN_REGULON_GENES = 5
 
@@ -21,6 +22,12 @@ class MechinfTest(unittest.TestCase):
         for key in keys:
             ref_genes = sorted(d1[key])
             genes = sorted(d2[key])
+            if len(ref_genes) != len(genes):
+                print("MISMATCH KEY: '%s'" % key)
+                print('REF GENES')
+                print(ref_genes)
+                print('GENES')
+                print(genes)
             self.assertEquals(ref_genes, genes)
 
     def compare_dicts2(self, d1, d2):
@@ -110,6 +117,19 @@ class MechinfTest(unittest.TestCase):
         self.assertTrue(ref_regulon_df.equals(regulon_df))
         self.assertEquals(ref_regulon_modules, regulon_modules)
 
+    def test_convert_dictionary(self):
+        with open('testdata/coexpressionDictionary-001.json') as infile:
+            revised_clusters = json.load(infile)
+
+        conv_table = pd.read_csv('testdata/ref_convtable-001.csv', header=0, index_col=0,
+                                 squeeze=True)
+
+        with open('testdata/ref_annot_rev_clusters-001.json') as infile:
+            ref_annot_rev_clusters = json.load(infile)
+
+        annot_rev_clusters = mechinf.convert_dictionary(revised_clusters,
+                                                        conv_table)
+        self.compare_dicts(ref_annot_rev_clusters, annot_rev_clusters)
 
 if __name__ == '__main__':
     SUITE = []
