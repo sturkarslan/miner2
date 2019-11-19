@@ -99,7 +99,8 @@ def hyper(population,set1,set2,overlap):
 
     return prb
 
-def get_principal_df(revised_clusters,expression_data,regulons=None,subkey='genes',min_number_genes=8,random_state=12):
+def get_principal_df(revised_clusters, expression_data, regulons=None,
+                     subkey='genes', min_number_genes=8, random_state=12):
 
     logging.info("preparing mechanistic inference")
 
@@ -108,13 +109,14 @@ def get_principal_df(revised_clusters,expression_data,regulons=None,subkey='gene
 
     if regulons is not None:
         revised_clusters, df = get_regulon_dictionary(regulons)
-    for i in revised_clusters.keys():
+
+    for i in sorted(revised_clusters.keys()):
         if subkey is not None:
-            genes = list(set(revised_clusters[i][subkey])&set_index)
+            genes = sorted(set(revised_clusters[i][subkey])&set_index)
             if len(genes) < min_number_genes:
                 continue
         elif subkey is None:
-            genes = list(set(revised_clusters[i])&set_index)
+            genes = sorted(set(revised_clusters[i])&set_index)
             if len(genes) < min_number_genes:
                 continue
 
@@ -125,15 +127,16 @@ def get_principal_df(revised_clusters,expression_data,regulons=None,subkey='gene
         principal_Df.columns = [str(i)]
 
         norm_PC = numpy.linalg.norm(numpy.array(principal_Df.iloc[:,0]))
-        pearson = scipy.stats.pearsonr(principal_Df.iloc[:,0],numpy.median(expression_data.loc[genes,:],axis=0))
-        sign_correction = pearson[0]/numpy.abs(pearson[0])
+        pearson = scipy.stats.pearsonr(principal_Df.iloc[:,0],
+                                       numpy.median(expression_data.loc[genes,:],
+                                                    axis=0))
+        sign_correction = pearson[0] / numpy.abs(pearson[0])
 
-        principal_Df = sign_correction*principal_Df/norm_PC
+        principal_Df = sign_correction * principal_Df / norm_PC
 
         pc_Dfs.append(principal_Df)
 
-    principal_matrix = pandas.concat(pc_Dfs,axis=1)
-
+    principal_matrix = pandas.concat(pc_Dfs, axis=1)
     return principal_matrix
 
 def get_regulon_dictionary(regulons):
@@ -292,21 +295,21 @@ def convert_dictionary(dic, conversion_table):
     return converted
 
 
-def convert_regulons(df, conversionTable):
-    regIds = []
+def convert_regulons(df, conversion_table):
+    """df is dataframe with the columns "Regulon_ID", "Regulator", "Gene"
+    """
+    reg_ids = []
     regs = []
     genes = []
-    for i in range(df.shape[0]):
-        regIds.append(df.iloc[i,0])
-        tmpReg = conversionTable[df.iloc[i,1]]
-        if type(tmpReg) is pandas.core.series.Series:
-            tmpReg = tmpReg[0]
-        regs.append(tmpReg)
-        tmpGene = conversionTable[df.iloc[i, 2]]
-        if type(tmpGene) is pandas.core.series.Series:
-            tmpGene = tmpGene[0]
-        genes.append(tmpGene)
+    conv_dict = defaultdict(list)
+    for pref_name, name in conversion_table.iteritems():
+        conv_dict[pref_name].append(name)
 
-    regulonDfConverted = pandas.DataFrame(numpy.vstack([regIds, regs, genes]).T)
-    regulonDfConverted.columns = ["Regulon_ID","Regulator","Gene"]
-    return regulonDfConverted
+    for i, row in df.iterrows():
+        reg_ids.append(row["Regulon_ID"])
+        regs.append(conv_dict[row["Regulator"]][0])
+        genes.append(conv_dict[row["Gene"]][0])
+
+    regulon_df_converted = pandas.DataFrame(numpy.vstack([reg_ids, regs, genes]).T)
+    regulon_df_converted.columns = ["Regulon_ID","Regulator","Gene"]
+    return regulon_df_converted

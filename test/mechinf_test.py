@@ -3,6 +3,7 @@ import sys
 import unittest
 
 import pandas as pd
+import numpy as np
 import logging
 import json
 from collections import defaultdict
@@ -130,6 +131,37 @@ class MechinfTest(unittest.TestCase):
         annot_rev_clusters = mechinf.convert_dictionary(revised_clusters,
                                                         conv_table)
         self.compare_dicts(ref_annot_rev_clusters, annot_rev_clusters)
+
+    def test_convert_regulons(self):
+        conv_table = pd.read_csv('testdata/ref_convtable-001.csv', header=0, index_col=0,
+                                 squeeze=True)
+        regulon_df = pd.read_csv('testdata/ref_regulon_df-001.csv', index_col=0, header=0)
+        ref_regulon_annotated_df = pd.read_csv('testdata/ref_annotated_regulon_df-001.csv',
+                                               header=0, index_col=0)
+
+        regulon_annotated_df = mechinf.convert_regulons(regulon_df, conv_table)
+
+        # careful ! Regulon_ID comes out as text in regulon_df, but is
+        # integer in ref_regulon_df !!!
+        regulon_annotated_df['Regulon_ID'] = pd.to_numeric(regulon_annotated_df['Regulon_ID'])
+
+        #regulon_annotated_df.to_csv("testdata/ref_annotated_regulon_df-001.csv")
+        self.assertTrue(ref_regulon_annotated_df.equals(regulon_annotated_df))
+
+    """
+    def test_get_principal_df(self):
+        exp_data, conv_table = preprocess.main('testdata/ref_exp-000.csv',
+                                               'testdata/identifier_mappings.txt')
+        with open('testdata/coexpressionDictionary-001.json') as infile:
+            revised_clusters = json.load(infile)
+
+        ref_principal_df = pd.read_csv('testdata/ref_principal_df-001.csv', index_col=0, header=0)
+        axes = mechinf.get_principal_df(revised_clusters, exp_data,
+                                        subkey=None, min_number_genes=1)
+        #axes.to_csv('testdata/ref_principal_df-001.csv', header=True, index=True)
+        self.assertTrue(np.isclose(ref_principal_df, axes).all())"""
+
+
 
 if __name__ == '__main__':
     SUITE = []
