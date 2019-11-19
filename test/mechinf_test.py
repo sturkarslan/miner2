@@ -148,7 +148,6 @@ class MechinfTest(unittest.TestCase):
         #regulon_annotated_df.to_csv("testdata/ref_annotated_regulon_df-001.csv")
         self.assertTrue(ref_regulon_annotated_df.equals(regulon_annotated_df))
 
-    """
     def test_get_principal_df(self):
         exp_data, conv_table = preprocess.main('testdata/ref_exp-000.csv',
                                                'testdata/identifier_mappings.txt')
@@ -159,7 +158,7 @@ class MechinfTest(unittest.TestCase):
         axes = mechinf.get_principal_df(revised_clusters, exp_data,
                                         subkey=None, min_number_genes=1)
         #axes.to_csv('testdata/ref_principal_df-001.csv', header=True, index=True)
-        self.assertTrue(np.isclose(ref_principal_df, axes).all())"""
+        self.assertTrue(np.isclose(ref_principal_df, axes).all())
 
 
 
