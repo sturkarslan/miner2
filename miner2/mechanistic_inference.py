@@ -58,9 +58,10 @@ def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.
     if single_cell:
         # clean tf_2_genes to only include genes in revised_clusters
         revised_clusters_gene_set = set()
-        for key in revised_clusters:
+        for key in sorted(revised_clusters.keys()):
             revised_clusters_gene_set.update(revised_clusters[key])
-        for key in tf_2_genes:
+
+        for key in sorted(tf_2_genes.keys()):
             genes = tf_2_genes[key]
             new_genes = [gene for gene in genes if gene in revised_clusters_gene_set]
             tf_2_genes.update({key: new_genes})
@@ -70,20 +71,20 @@ def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.
     elif correlation_threshold > 0:
         all_genes = list(expression_data.index)
 
-    tfs = list(tf_2_genes.keys())
+    tfs = sorted(tf_2_genes.keys())
     tf_map = axis_tfs(axes, tfs, expression_data, correlation_threshold=correlation_threshold)
 
     tasks = [[cluster_key,(all_genes,revised_clusters,tf_map,tf_2_genes,p)]
-             for cluster_key in list(revised_clusters.keys())]
+             for cluster_key in sorted(revised_clusters.keys())]
 
     hydra = multiprocessing.pool.Pool(num_cores)
     results = hydra.map(tfbsdb_enrichment, tasks)
 
     mechanistic_output = {}
     for result in results:
-        for key in result.keys():
+        for key in sorted(result.keys()):
             if key not in mechanistic_output:
-                mechanistic_output[key]=result[key]
+                mechanistic_output[key] = result[key]
             else:
                 raise Exception('key "%s" twice' % key)
 

@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import logging
 import json
+import os
 from collections import defaultdict
 
 from miner2 import mechanistic_inference as mechinf, preprocess
@@ -160,7 +161,23 @@ class MechinfTest(unittest.TestCase):
         #axes.to_csv('testdata/ref_principal_df-001.csv', header=True, index=True)
         self.assertTrue(np.isclose(ref_principal_df, axes).all())
 
+    def test_enrichment(self):
+        exp_data, conv_table = preprocess.main('testdata/ref_exp-000.csv',
+                                               'testdata/identifier_mappings.txt')
+        with open('testdata/coexpressionDictionary-001.json') as infile:
+            revised_clusters = json.load(infile)
+        axes = pd.read_csv('testdata/ref_principal_df-001.csv', index_col=0, header=0)
+        database_path = os.path.join('miner2/data', "tfbsdb_tf_to_genes.pkl")
+        with open('testdata/ref_mechout-001.json') as infile:
+            ref_mechout = json.load(infile)
 
+        mechout = mechinf.enrichment(axes, revised_clusters, exp_data,
+                                     correlation_threshold=0.2,
+                                     num_cores=5,
+                                     database_path=database_path)
+        #with open('testdata/ref_mechout-001.json', 'w') as outfile:
+        #    json.dump(mechout, outfile)
+        self.compare_dicts(ref_mechout, mechout)
 
 if __name__ == '__main__':
     SUITE = []
