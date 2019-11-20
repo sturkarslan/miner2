@@ -16,6 +16,7 @@ from graphviz import Source
 from xgboost import plot_tree
 
 import pickle
+import logging
 
 from miner2 import risk_predict, survival, util
 from miner2 import GIT_SHA, __version__ as pkg_version
@@ -25,14 +26,19 @@ MINER Version %s (Git SHA %s)""" % (pkg_version, GIT_SHA.replace('$Id: ', '').re
 
 
 def cross_dataset_prediction(membership_datasets, survival_datasets, dataset_labels,
-                             outdir, method):
+                             outdir, method, verbose):
+    if verbose:
+        logging.info("calculating cross data set prediction using method: '%s'" % method)
+
     if method == "decisionTree":
-        classifier, class0, class1, mean_aucs, mean_hrs, pct_labeled, precision_matrix, recall_matrix = risk_predict.generate_predictor(membership_datasets, survival_datasets, dataset_labels, iterations=30, method=method, output_directory=outdir, metric='hazard_ratio', separate_results=True, class1_proportion=0.30, test_proportion=0.30, best_state=11, test_only=True)
+        classifier, class0, class1, mean_aucs, mean_hrs, pct_labeled, precision_matrix, recall_matrix = risk_predict.generate_predictor(membership_datasets, survival_datasets, dataset_labels, iterations=30, method=method, output_directory=outdir, metric='hazard_ratio', separate_results=True, class1_proportion=0.30, test_proportion=0.30, best_state=11, test_only=True, verbose=verbose)
     elif method == "xgboost":
-        classifier, class0, class1, mean_aucs, mean_hrs, pct_labeled, precision_matrix, recall_matrix = risk_predict.generate_predictor(membership_datasets, survival_datasets, dataset_labels, iterations=30, method=method, output_directory=outdir, metric='hazard_ratio', separate_results=True, class1_proportion=0.30, test_proportion=0.30, best_state=None)
+        classifier, class0, class1, mean_aucs, mean_hrs, pct_labeled, precision_matrix, recall_matrix = risk_predict.generate_predictor(membership_datasets, survival_datasets, dataset_labels, iterations=30, method=method, output_directory=outdir, metric='hazard_ratio', separate_results=True, class1_proportion=0.30, test_proportion=0.30, best_state=None, verbose=verbose)
     else:
         raise Exception("unknown predictor type '%s'" % method)
 
+    if verbose:
+        logging.info('plotting precision/recall')
     recall = recall_matrix[2]
     precision = precision_matrix[2]
     plt.step(recall, precision, alpha=0.8,where='post')
@@ -66,11 +72,16 @@ def visualize_decision_tree_xgboost(classifier, outdir):
 
 
 if __name__ == '__main__':
+    LOG_FORMAT = '%(asctime)s %(message)s'
+    logging.basicConfig(format=LOG_FORMAT, level=logging.DEBUG,
+                        datefmt='%Y-%m-%d %H:%M:%S \t')
+
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=DESCRIPTION)
     parser.add_argument('input', help="input specification file")
     parser.add_argument('outdir', help="output directory")
     parser.add_argument('--method', default="decisionTree", help="predictor method (decisionTree or xgboost)")
+    parser.add_argument('-v', '--verbose', action="store_true", help="predictor method (decisionTree or xgboost)")
 
     args = parser.parse_args()
 
@@ -83,7 +94,7 @@ if __name__ == '__main__':
     with open(args.input) as infile:
         input_spec = json.load(infile)
 
-    datasets = risk_predict.read_datasets(input_spec)
+    datasets = risk_predict.read_datasets(input_spec, args.verbose)
 
     # extract the important info
     membership_datasets = [ds['omm'] for ds in datasets]
@@ -91,13 +102,18 @@ if __name__ == '__main__':
     dataset_labels = [ds['label'] for ds in datasets]
 
     classifier = cross_dataset_prediction(membership_datasets, survival_datasets, dataset_labels,
-                                          args.outdir, args.method)
+                                          args.outdir, args.method, args.verbose)
+
+    if args.verbose:
+        logging.info("Generating decision tree visualization")
 
     if args.method == 'decisionTree':
         visualize_decision_tree(classifier, args.outdir)
     elif args.method == 'xgboost':
         visualize_decision_tree_xgboost(classifier, args.outdir)
 
+    if args.verbose:
+        logging.info("Writing serialized classifier")
     clf_filepath = os.path.join(args.outdir, 'miner_alldata_predictor.pkl')
     with open(clf_filepath, 'wb') as outfile:
         pickle.dump(classifier, outfile)

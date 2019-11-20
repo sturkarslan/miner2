@@ -38,7 +38,6 @@ def make_membership_dictionary(revisedClusters, background, label=2, p=0.05):
                 members[key] = []
                 continue
             members[key] = list(background.columns[nonMembers])
-        print("done!")
         return members
 
     if label == "included":
@@ -55,7 +54,6 @@ def make_membership_dictionary(revisedClusters, background, label=2, p=0.05):
                 continue
 
             members[key] = list(background.columns[included])
-        print("done!")
         return members
 
     members = {}
@@ -70,7 +68,6 @@ def make_membership_dictionary(revisedClusters, background, label=2, p=0.05):
             members[key] = []
             continue
         members[key] = list(background.columns[overExpMembers])
-    print("done!")
     return members
 
 

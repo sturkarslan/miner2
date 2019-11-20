@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import json
+import logging
 
 from miner2 import survival, preprocess, biclusters, miner
 
@@ -60,12 +61,9 @@ def prediction_matrix(membership_datasets,survival_datasets,high_risk_cutoff=0.2
         if lrmatrix is not None:
             lr_matrices.append(lrmatrix)
 
-    print('# hr_matrices: %d' % len(hr_matrices))
-    print('# lr_matrices: %d' % len(lr_matrices))
     hrMatrixCombined = pd.concat(hr_matrices,axis=0)
     lrMatrixCombined = pd.concat(lr_matrices,axis=0)
     predictionMat = pd.concat([hrMatrixCombined,lrMatrixCombined],axis=0)
-    print(predictionMat.shape)
     return predictionMat
 
 
@@ -249,7 +247,8 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
                        iterations=20, method='xgboost', n_estimators=100,
                        output_directory=None, best_state=None, test_only=True,
                        separate_results=True, metric='roc_auc', class1_proportion=0.20,
-                       test_proportion=0.35,colsample_bytree=1,subsample=1):
+                       test_proportion=0.35, colsample_bytree=1, subsample=1,
+                       verbose=False):
     """
     Computes a classifier object from the specified input data sets.
     The result is either an xgboost.XGBClassifier or a sklearn.tree.DecisionTreeClassifier
@@ -323,7 +322,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
                 mean_hr = np.mean(hrs)
                 mean_aucs.append(mean_auc)
                 mean_hrs.append(mean_hr)
-                print(rs,mean_auc,mean_hr)
+                #print(rs,mean_auc,mean_hr)
 
             elif test_only is False:
                 scores = []
@@ -349,7 +348,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
                 mean_hr = np.mean(hrs)
                 mean_aucs.append(mean_auc)
                 mean_hrs.append(mean_hr)
-                print(rs,mean_auc,mean_hr)
+                #print(rs,mean_auc,mean_hr)
 
         if metric == 'roc_auc':
             best_state = np.argsort(np.array(mean_aucs))[-1]
@@ -407,7 +406,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
         mean_hrs.append(mean_hr)
         precision_matrix = np.vstack(prec)
         recall_matrix = np.vstack(rec)
-        print(best_state,mean_auc,mean_hr)
+        #print(best_state,mean_auc,mean_hr)
 
     else:
         scores = []
@@ -437,7 +436,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
         mean_hrs.append(mean_hr)
         precision_matrix = np.vstack(prec)
         recall_matrix = np.vstack(rec)
-        print(best_state,mean_auc,mean_hr)
+        #print(best_state,mean_auc,mean_hr)
 
     train_predictions = []
     test_predictions = []
@@ -458,8 +457,8 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
             survival_tag = dataset_labels[j]
             lbls = predictions[j]
 
-            percent_classified_hr = 100*sum(lbls)/float(len(lbls))
-            print('classified {:.1f} percent of population as high-risk'.format(percent_classified_hr))
+            percent_classified_hr = 100 * sum(lbls) / float(len(lbls))
+            logging.info('classified {:.1f} percent of population as high-risk'.format(percent_classified_hr))
 
             aucs, cutoffs, tpr_list, fpr_list, hazard_ratio, prec, rec = risk_stratification(lbls,mtrx,guan_srv,survival_tag,clf,guan_rank=False,resultsDirectory=None,plot_all=False,plot_any=True)
             if output_directory is not None:
@@ -474,7 +473,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
             lbls = train_predictions[j]
 
             percent_classified_hr = 100*sum(lbls)/float(len(lbls))
-            print('classified {:.1f} percent of training population as high-risk'.format(percent_classified_hr))
+            logging.info('classified {:.1f} percent of training population as high-risk'.format(percent_classified_hr))
 
             aucs, cutoffs, tpr_list, fpr_list, hazard_ratio, prec, rec = risk_stratification(lbls,mtrx,guan_srv,survival_tag,clf,guan_rank=False,resultsDirectory=None,plot_all=False,plot_any=True)
             if output_directory is not None:
@@ -484,7 +483,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
             lbls = test_predictions[j]
 
             percent_classified_hr = 100*sum(lbls)/float(len(lbls))
-            print('classified {:.1f} percent of test population as high-risk'.format(percent_classified_hr))
+            logging.info('classified {:.1f} percent of test population as high-risk'.format(percent_classified_hr))
 
             aucs, cutoffs, tpr_list, fpr_list, hazard_ratio, prec, rec = risk_stratification(lbls,mtrx,guan_srv,survival_tag,clf,guan_rank=False,resultsDirectory=None,plot_all=False,plot_any=True)
             if output_directory is not None:
@@ -501,7 +500,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
         class0.append(tmp_class_0)
         class1.append(tmp_class_1)
 
-    print(best_state)
+    #print(best_state)
 
     if best_state is not None:
         return clf, class0, class1, mean_aucs, mean_hrs, pct_labeled, precision_matrix, recall_matrix
@@ -535,7 +534,7 @@ def get_survival_subset(surv_df, label):
     return survival.guan_rank(kmSurvival=km_df)
 
 
-def read_datasets(input_spec):
+def read_datasets(input_spec, verbose):
     """
     Reads a datasets dictionary from the specified input specification
     """
@@ -549,7 +548,10 @@ def read_datasets(input_spec):
     test_survival = pd.read_csv(input_spec['test_survival'], index_col=0,header=0)
 
     datasets = []
-    for dataset in input_spec['datasets']:
+    for i, dataset in enumerate(input_spec['datasets']):
+        if verbose:
+            logging.info("generating model for dataset '%s' (%d of %d)",
+                         dataset['label'], i + 1, len(input_spec['datasets']))
         omm, umm = load_test_set(dataset['exp'], regulon_modules, dataset['idmap'])
         dataset_obj = {
             'omm': omm,
@@ -563,7 +565,6 @@ def read_datasets(input_spec):
                                                      durationCol="duration", statusCol="observed")
             dataset_obj['gs'] = survival.guan_rank(kmSurvival=dataset_obj['km'])
         else:
-            print('subset of global survival')
             dataset_obj['gs'] = get_survival_subset(test_survival, dataset['survival_subset'])
 
         datasets.append(dataset_obj)

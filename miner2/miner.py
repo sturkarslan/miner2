@@ -162,14 +162,14 @@ def identifierConversion(expressionData,
         corrections.append(firstChoice)
 
     if len(corrections)  == 0:
-        print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
+        #print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
         return convertedData, conversionTable
 
     correctionsDf = pd.concat(corrections,axis=0)
     uncorrectedData = convertedData.loc[singles,:]
     convertedData = pd.concat([uncorrectedData,correctionsDf],axis=0)
 
-    print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
+    #print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
 
     return convertedData, conversionTable
 
@@ -827,7 +827,6 @@ def biclusterMembershipDictionary(revisedClusters,background,label=2,p=0.05):
                 members[key] = []
                 continue
             members[key] = list(background.columns[nonMembers])
-        print("done!")
         return members
 
     if label == "included":
@@ -843,7 +842,6 @@ def biclusterMembershipDictionary(revisedClusters,background,label=2,p=0.05):
                 members[key] = []
                 continue
             members[key] = list(background.columns[included])
-        print("done!")
         return members
 
     members = {}
@@ -858,7 +856,6 @@ def biclusterMembershipDictionary(revisedClusters,background,label=2,p=0.05):
             members[key] = []
             continue
         members[key] = list(background.columns[overExpMembers])
-    print("done!")
     return members
 
 
