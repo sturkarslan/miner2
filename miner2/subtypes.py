@@ -30,8 +30,11 @@ def f1_decomposition(sampleMembers=None, thresholdSFM=0.333, sampleFrequencyMatr
 
     # remainingMembers is the set of set of unclustered members
     remainingMembers = set(similarityMatrix.index)
+
     # probeSample is the sample that serves as a seed to identify a cluster in a given iteration
-    probeSample = numpy.argmax(similarityMatrix.sum(axis=1))
+    # WW: replaced deprecated numpy function with idxmax() on data frame
+    probeSample = similarityMatrix.sum(axis=1).idxmax()
+
     # members are the samples that satisfy the similarity condition with the previous cluster or probeSample
     members = set(similarityMatrix.index[numpy.where(similarityMatrix[probeSample] == 1)[0]])
     # nonMembers are the remaining members not in the current cluster
@@ -54,7 +57,10 @@ def f1_decomposition(sampleMembers=None, thresholdSFM=0.333, sampleFrequencyMatr
             if len(predictedNonMembers) == 0:
                 break
             similarityMatrix = similarityMatrix.loc[predictedNonMembers, predictedNonMembers]
-            probeSample = numpy.argmax(similarityMatrix.sum(axis=1))
+
+            # replaced deprecated numpy function with DataFrame.idxmax()
+            probeSample = similarityMatrix.sum(axis=1).idxmax()
+
             members = set(similarityMatrix.index[numpy.where(similarityMatrix[probeSample]==1)[0]])
             remainingMembers = predictedNonMembers
             nonMembers = remainingMembers-members
@@ -72,7 +78,10 @@ def f1_decomposition(sampleMembers=None, thresholdSFM=0.333, sampleFrequencyMatr
             if len(predictedNonMembers) == 0:
                 break
             similarityMatrix = similarityMatrix.loc[predictedNonMembers,predictedNonMembers]
-            probeSample = numpy.argmax(similarityMatrix.sum(axis=1))
+
+            # replaced deprecated numpy function with DataFrame.idxmax()
+            probeSample = similarityMatrix.sum(axis=1).idxmax()
+
             members = set(similarityMatrix.index[numpy.where(similarityMatrix[probeSample]==1)[0]])
             remainingMembers = predictedNonMembers
             nonMembers = remainingMembers-members
