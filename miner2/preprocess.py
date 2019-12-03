@@ -19,6 +19,78 @@ def correct_batch_effects(df):
         zscored_expression = preprocess_tpm(df)
     return zscored_expression
 
+
+def identifier_conversion(exp_data, conv_table_path=None):
+    idMap = pandas.read_table(conv_table_path)
+    genetypes = list(set(idMap.iloc[:,2]))
+    previousIndex = numpy.array(exp_data.index).astype(str)
+    previousColumns = numpy.array(exp_data.columns).astype(str)
+    bestMatch = []
+
+    for geneType in genetypes:
+        subset = idMap[idMap.iloc[:,2]==geneType]
+        subset.index = subset.iloc[:,1]
+        mappedGenes = list(set(previousIndex)&set(subset.index))
+        mappedSamples = list(set(previousColumns)&set(subset.index))
+        if len(mappedGenes) >= max(10, 0.01 * exp_data.shape[0]):
+            if len(mappedGenes)>len(bestMatch):
+                bestMatch = mappedGenes
+                state = "original"
+                gtype = geneType
+                continue
+        if len(mappedSamples)>=max(10, 0.01 * exp_data.shape[1]):
+            if len(mappedSamples)>len(bestMatch):
+                bestMatch = mappedSamples
+                state = "transpose"
+                gtype = geneType
+                continue
+
+    mappedGenes = bestMatch
+    subset = idMap[idMap.iloc[:,2]==gtype]
+    subset.index = subset.iloc[:,1]
+
+    if len(bestMatch) == 0:
+        print("Error: Gene identifiers not recognized")
+
+    if state == "transpose":
+        exp_data = exp_data.T
+
+    try:
+        convertedData = exp_data.loc[mappedGenes,:]
+    except:
+        convertedData = exp_data.loc[numpy.array(mappedGenes).astype(int),:]
+
+    conversionTable = subset.loc[mappedGenes,:]
+    conversionTable.index = conversionTable.iloc[:,0]
+    conversionTable = conversionTable.iloc[:,1]
+    conversionTable.columns = ["Name"]
+
+    newIndex = list(subset.loc[mappedGenes,"Preferred_Name"])
+    convertedData.index = newIndex
+
+    duplicates = [item for item, count in Counter(newIndex).items() if count > 1]
+    singles = list(set(convertedData.index)-set(duplicates))
+
+    corrections = []
+    for duplicate in duplicates:
+        dupData = convertedData.loc[duplicate,:]
+        firstChoice = pandas.DataFrame(dupData.iloc[0,:]).T
+        corrections.append(firstChoice)
+
+    if len(corrections)  == 0:
+        #print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
+        return convertedData, conversionTable
+
+    correctionsDf = pandas.concat(corrections,axis=0)
+    uncorrectedData = convertedData.loc[singles,:]
+    convertedData = pandas.concat([uncorrectedData,correctionsDf],axis=0)
+
+    #print("completed identifier conversion.\n"+str(convertedData.shape[0])+" genes were converted." )
+
+    return convertedData, conversionTable
+
+
+"""
 def identifier_conversion(expression_data, conversion_table_path=None):
 
     # if not specified, read conversion table from package data
@@ -138,6 +210,7 @@ def identifier_conversion(expression_data, conversion_table_path=None):
     logging.info("{} out of {} gene names converted to ENSEMBL IDs".format(converted_data.shape[0], expression_data.shape[0]))
 
     return converted_data,conversion_table
+"""
 
 def entropy(vector):
 

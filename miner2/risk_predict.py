@@ -264,6 +264,16 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
     predictionMat = prediction_matrix(membership_datasets,survival_datasets,
                                       high_risk_cutoff=class1_proportion)
 
+    pm_keys = sorted(predictionMat.keys())
+    cox_hr = [predictionMat[i][0] for i in pm_keys]
+    cox_p = [predictionMat[i][1] for i in pm_keys]
+    cox_combined_states_df = pd.DataFrame(np.vstack([cox_hr,cox_p]).T)
+    #cox_combined_states_df.index = predictionMat.index
+    cox_combined_states_df.columns = ["HR","p-value"]
+    cox_combined_states_df.sort_values(by="HR",ascending=False,inplace=True)
+    cox_combined_states_df.sort_index(inplace=True)
+    cox_combined_states_df.to_csv(os.path.join(output_directory, 'CoxProportionalHazardsRegulons.csv'))
+
     X = np.array(predictionMat.iloc[:,0:-1])
     Y = np.array(predictionMat.iloc[:,-1])
     X = X.astype('int')
@@ -510,8 +520,7 @@ def generate_predictor(membership_datasets, survival_datasets, dataset_labels,
 
 def load_test_set(exp_path, reference_modules, conv_table_path):
     exp_data = pd.read_csv(exp_path, index_col=0,header=0)
-    # WHY ???? does preprocess.identifier_conversion not work ? TODO
-    exp_data, _ = miner.identifierConversion(exp_data, conv_table_path)
+    exp_data, _ = preprocess.identifier_conversion(exp_data, conv_table_path)
     exp_data = preprocess.zscore(exp_data)
     bkgd = preprocess.background_df(exp_data)
 
