@@ -13,7 +13,7 @@ import pydot
 from graphviz import Source
 
 # xgboost requires different plotting method
-from xgboost import plot_tree
+from xgboost import plot_tree, to_graphviz
 
 import pickle
 import logging
@@ -53,6 +53,8 @@ def cross_dataset_prediction(membership_datasets, survival_datasets, dataset_lab
 
 
 def visualize_decision_tree(classifier, outdir):
+    with open(os.path.join(outdir, 'decision_tree_sklearn.gv'), 'w') as outfile:
+        tree.export_graphviz(classifier, out_file=outfile)
     dot_data = StringIO()
     tree.export_graphviz(classifier, out_file=dot_data)
     graph = pydot.graph_from_dot_data(dot_data.getvalue())
@@ -65,6 +67,9 @@ def visualize_decision_tree(classifier, outdir):
 
 
 def visualize_decision_tree_xgboost(classifier, outdir):
+    dot = to_graphviz(classifier)
+    dot.save(os.path.join(outdir, 'decision_tree_xgboost.gv'))
+
     plot_tree(classifier, num_trees=1)
     fig = plt.gcf()
     fig.set_size_inches(50, 10)
@@ -81,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('input', help="input specification file")
     parser.add_argument('outdir', help="output directory")
     parser.add_argument('--method', default="decisionTree", help="predictor method (decisionTree or xgboost)")
-    parser.add_argument('-v', '--verbose', action="store_true", help="predictor method (decisionTree or xgboost)")
+    parser.add_argument('-v', '--verbose', action="store_true", help="activate verbose mode")
 
     args = parser.parse_args()
 
