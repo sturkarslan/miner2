@@ -7,6 +7,7 @@ import sklearn
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+import time
 
 
 """
@@ -171,6 +172,18 @@ def centroid_expansion(classes, sampleMatrix, f1Threshold=0.3, returnCentroids=N
         return centroidClusters, centroidMatrix
 
     return centroidClusters
+
+def get_centroids(classes, sampleMatrix):
+    centroids = []
+    for i in range(len(classes)):
+        clusterComponents = sampleMatrix.loc[:,classes[i]]
+        class1 = np.mean(clusterComponents,axis=1)
+        centroid = pd.DataFrame(class1)
+        centroid.columns = [i]
+        centroid.index = sampleMatrix.index
+        centroids.append(centroid)
+    return pd.concat(centroids,axis=1)
+
 
 
 def __f1(vector1, vector2):
@@ -645,3 +658,135 @@ def plot_states(statesDf, tsneDf, numCols=None, numRows=None, saveFile=None,
 
     if saveFile is not None:
         plt.savefig(saveFile, bbox_inches="tight")
+
+
+def infer_subtypes(referenceMatrix, primaryMatrix, secondaryMatrix, primaryDictionary,
+                   secondaryDictionary,minClusterSize=5,restricted_index=None,
+                   tertiaryMatrix=None,tertiaryDictionary=None):
+
+    t1 = time.time()
+
+    print('Beginning subtype inference')
+    if restricted_index is not None:
+        referenceMatrix = referenceMatrix.loc[restricted_index,:]
+        primaryMatrix = primaryMatrix.loc[restricted_index,:]
+        secondaryMatrix = secondaryMatrix.loc[restricted_index,:]
+
+    # perform initial subtype clustering
+    similarityClusters = f1_decomposition(primaryDictionary,thresholdSFM=0.1)
+    similarityClusters = [list(set(cluster)&set(referenceMatrix.columns)) for cluster in similarityClusters]
+    initialClasses = [i for i in similarityClusters if len(i)>4]
+    if len(initialClasses)==0:
+        print('No subtypes were detected')
+
+    # expand initial subtype clusters
+    centroidClusters, centroidMatrix = centroid_expansion(initialClasses,primaryMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
+
+    subcentroidClusters = []
+    for c in range(len(centroidClusters)):
+        tmp_cluster = centroidClusters[c]
+        if len(tmp_cluster) < 2*minClusterSize:
+            subcentroidClusters.append(tmp_cluster)
+            continue
+
+        sampleDictionary = {key:list(set(tmp_cluster)&set(secondaryDictionary[key])) for key in secondaryDictionary}
+        sampleMatrix = secondaryMatrix.loc[:,tmp_cluster]
+
+        # perform initial subtype clustering
+        similarityClusters = f1_decomposition(sampleDictionary,thresholdSFM=0.1)
+        initialClasses = [i for i in similarityClusters if len(i)>4]
+        if len(initialClasses)==0:
+            subcentroidClusters.append(tmp_cluster)
+            continue
+
+        # expand initial subtype clusters
+        tmp_centroidClusters, tmp_centroidMatrix = centroid_expansion(initialClasses,sampleMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
+
+        if len(tmp_centroidClusters) <= 1:
+            subcentroidClusters.append(tmp_cluster)
+            continue
+
+        for cc in range(len(tmp_centroidClusters)-1):
+            new_cluster = tmp_centroidClusters[cc]
+            if len(new_cluster) < minClusterSize:
+                other_clusters = [tmp_centroidClusters[k] for k in range(len(tmp_centroidClusters)-1) if k!=cc]
+                tmp_labels = numpy.array([k for k in range(len(tmp_centroidClusters)-1) if k!=cc])
+                new_centroids = get_centroids(other_clusters,referenceMatrix)
+                for sample in new_cluster:
+                    pearson = pearson_array(numpy.array(new_centroids).T,numpy.array(referenceMatrix.loc[:,sample]))
+                    top_hit = numpy.argsort(pearson)[-1]
+                    top_label = tmp_labels[top_hit]
+                    tmp_centroidClusters[top_label].append(sample)
+                tmp_centroidClusters = [tmp_centroidClusters[ii] for ii in range(len(tmp_centroidClusters)) if ii != cc]
+
+            elif len(new_cluster) >= minClusterSize:
+                continue
+
+        for ccc in range(len(tmp_centroidClusters)-1):
+            subcentroidClusters.append(tmp_centroidClusters[ccc])
+
+        if c == len(centroidClusters)-1:
+            subcentroidClusters.append(tmp_centroidClusters[-1])
+
+    if tertiaryMatrix is not None:
+
+        centroidClusters2 = subcentroidClusters
+        subcentroidClusters2 = []
+
+        for c in range(len(centroidClusters2)):
+            tmp_cluster = centroidClusters2[c]
+            if len(tmp_cluster) < 2*minClusterSize:
+                subcentroidClusters2.append(tmp_cluster)
+                continue
+            secondaryDictionary = tertiaryDictionary
+            secondaryMatrix = tertiaryMatrix
+
+            sampleDictionary = {key:list(set(tmp_cluster)&set(secondaryDictionary[key])) for key in secondaryDictionary}
+            sampleMatrix = secondaryMatrix.loc[:,tmp_cluster]
+
+            # perform initial subtype clustering
+            similarityClusters = f1_decomposition(sampleDictionary,thresholdSFM=0.1)
+            initialClasses = [i for i in similarityClusters if len(i)>4]
+            if len(initialClasses)==0:
+                subcentroidClusters2.append(tmp_cluster)
+                continue
+
+            # expand initial subtype clusters
+            tmp_centroidClusters, tmp_centroidMatrix = centroid_expansion(initialClasses,sampleMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
+
+            if len(tmp_centroidClusters) <= 1:
+                subcentroidClusters2.append(tmp_cluster)
+                continue
+
+            for cc in range(len(tmp_centroidClusters)-1):
+                new_cluster = tmp_centroidClusters[cc]
+                if len(new_cluster) < minClusterSize:
+                    other_clusters = [tmp_centroidClusters[k] for k in range(len(tmp_centroidClusters)-1) if k!=cc]
+                    tmp_labels = numpy.array([k for k in range(len(tmp_centroidClusters)-1) if k!=cc])
+                    new_centroids = get_centroids(other_clusters,referenceMatrix)
+                    for sample in new_cluster:
+                        pearson = pearson_array(numpy.array(new_centroids).T,
+                                                numpy.array(referenceMatrix.loc[:,sample]))
+                        top_hit = numpy.argsort(pearson)[-1]
+                        top_label = tmp_labels[top_hit]
+                        tmp_centroidClusters[top_label].append(sample)
+                    tmp_centroidClusters = [tmp_centroidClusters[ii] for ii in range(len(tmp_centroidClusters)) if ii != cc]
+
+                elif len(new_cluster) >= minClusterSize:
+                    continue
+
+            for ccc in range(len(tmp_centroidClusters)-1):
+                subcentroidClusters2.append(tmp_centroidClusters[ccc])
+
+            if c == len(centroidClusters2)-1:
+                subcentroidClusters2.append(tmp_centroidClusters[-1])
+
+        t2 = time.time()
+        print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
+
+        return subcentroidClusters2, subcentroidClusters, centroidClusters
+
+    t2 = time.time()
+    print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
+
+    return subcentroidClusters, centroidClusters
