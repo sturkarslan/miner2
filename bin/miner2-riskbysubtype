@@ -27,6 +27,8 @@ if __name__ == '__main__':
     parser.add_argument('survfile', help="survival data CSV file")
 
     parser.add_argument('outdir', help="output directory")
+    parser.add_argument('-i', '--infer_subtypes', action="store_true",
+                        help="use infer subtypes to calculate states")
     args = parser.parse_args()
 
     if not os.path.exists(args.regulons):
@@ -73,15 +75,34 @@ if __name__ == '__main__':
                                                               ylabel="Modules",
                                                               resultsDirectory=args.outdir)
 
-    min_clust_size = int(np.ceil(0.01 * exp_data.shape[1]))
-    ref_matrix = overexpressed_members_matrix - underexpressed_members_matrix
-    states, centroid_clusters = subtypes.infer_subtypes(ref_matrix,
-                                                        overexpressed_members_matrix,
-                                                        underexpressed_members_matrix,
-                                                        overexpressed_members,
-                                                        underexpressed_members,
-                                                        minClusterSize=min_clust_size,
-                                                        restricted_index=None)
+
+    # NOTE: infer_subtypes() gets you a different number of states than mosaic() !!!
+    if args.infer_subtypes:
+        min_clust_size = int(np.ceil(0.01 * exp_data.shape[1]))
+        ref_matrix = overexpressed_members_matrix - underexpressed_members_matrix
+        states, centroid_clusters = subtypes.infer_subtypes(ref_matrix,
+                                                            overexpressed_members_matrix,
+                                                            underexpressed_members_matrix,
+                                                            overexpressed_members,
+                                                            underexpressed_members,
+                                                            minClusterSize=min_clust_size,
+                                                            restricted_index=None)
+    else:
+        ordered_dm = subtypes.plot_differential_matrix(overexpressed_members_matrix,
+                                                       underexpressed_members_matrix,
+                                                       ordered_overexpressed_members,
+                                                       cmap="bwr", aspect="auto",
+                                                       saveFile=os.path.join(args.outdir,
+                                                                             "centroid_clusters_heatmap.pdf"))
+        programs, states = subtypes.mosaic(dfr=ordered_dm,
+                                           clusterList=centroid_clusters,
+                                           minClusterSize_x=9,
+                                           minClusterSize_y=5,
+                                           allow_singletons=False,
+                                           max_groups=50,
+                                           saveFile=os.path.join(args.outdir,
+                                                                 "regulon_activity_heatmap.pdf"),
+                                           random_state=12)
 
 
     #########################################################################
