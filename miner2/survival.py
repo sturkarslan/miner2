@@ -135,6 +135,53 @@ def survival_membership_analysis(task):
     return coxResults
 
 
+def survival_median_analysis(task):
+    start, stop = task[0]
+    referenceDictionary,expressionDf,SurvivalDf = task[1]
+
+    overlapPatients = list(set(expressionDf.columns)&set(SurvivalDf.index))
+    Survival = SurvivalDf.loc[overlapPatients,SurvivalDf.columns[0:2]]
+
+    coxResults = {}
+    keys = referenceDictionary.keys()[start:stop]
+    ct=0
+    for key in keys:
+        ct+=1
+        if ct%10==0:
+            print(ct)
+        try:
+            geneset = referenceDictionary[key]
+            cluster = expressionDf.loc[geneset,overlapPatients]
+            nz = np.count_nonzero(cluster+4.01,axis=0)
+
+            medians = []
+            for i in range(cluster.shape[1]):
+                if nz[i] >= 3:
+                    median = np.median(cluster.iloc[:,i][cluster.iloc[:,i]>-4.01])
+                elif nz[i] < 3:
+                    median = np.median(cluster.iloc[:,i])
+                medians.append(median)
+
+            medianDf = pd.DataFrame(medians)
+            medianDf.index = overlapPatients
+            medianDf.columns = ["median"]
+            Survival = pd.concat([Survival,medianDf],axis=1)
+            Survival.sort_values(by=Survival.columns[0],inplace=True)
+
+            cph = CoxPHFitter()
+            cph.fit(Survival, duration_col=Survival.columns[0], event_col=Survival.columns[1])
+
+            tmpcph = cph.summary
+
+            cox_hr = tmpcph.loc[key,"z"]
+            cox_p = tmpcph.loc[key,"p"]
+            coxResults[key] = (cox_hr, cox_p)
+        except:
+            coxResults[key] = (0, 1)
+
+    return coxResults
+
+
 def parallel_member_survival_analysis(membershipDf, numCores=5, survivalPath=None,
                                       survivalData=None):
 
@@ -145,6 +192,21 @@ def parallel_member_survival_analysis(membershipDf, numCores=5, survivalPath=Non
     taskData = (membershipDf, survivalData)
     tasks = [[taskSplit[i],taskData] for i in range(len(taskSplit))]
     coxOutput = util.multiprocess(survival_membership_analysis, tasks)
+    return util.condense_output(coxOutput)
+
+
+def parallel_median_survival_analysis(referenceDictionary,
+                                      expressionDf,
+                                      numCores=5,
+                                      survivalPath=None,
+                                      survivalData=None):
+
+    if survivalData is None:
+        survivalData = pd.read_csv(survivalPath,index_col=0,header=0)
+    taskSplit = util.split_for_multiprocessing(referenceDictionary.keys(),numCores)
+    taskData = (referenceDictionary,expressionDf,survivalData)
+    tasks = [[taskSplit[i],taskData] for i in range(len(taskSplit))]
+    coxOutput = util.multiprocess(survival_median_analysis,tasks)
     return util.condense_output(coxOutput)
 
 

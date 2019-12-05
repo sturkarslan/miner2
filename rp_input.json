@@ -1,5 +1,5 @@
 {
-    "regulons": "prout_mechinf/regulons.json",
+    "regulons": "out-mechinf/regulons.json",
     "primary_survival": "MATTDATA/survival/survivalIA12.csv",
     "test_survival": "MATTDATA/survival/globalClinTraining.csv",
     "datasets": [

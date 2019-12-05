@@ -190,16 +190,15 @@ def readExpressionFromGZipFiles(directory):
     expressionData = pd.concat(sample_dfs,axis=1)
     return expressionData
 
-def readCausalFiles(directory):
-
-    rootDir = directory
+def readCausalFiles(rootDir):
     sample_dfs = []
     for dirName, subdirList, fileList in os.walk(rootDir):
+        #print("dn: %s, sdl: %s, fl: %s" % (dirName, str(subdirList), str(fileList)))
         for fname in fileList:
             #print('\t%s' % fname)
             extension = fname.split(".")[-1]
             if extension == 'csv':
-                path = os.path.join(rootDir,dirName,fname)
+                path = os.path.join(dirName, fname)
                 df = pd.read_csv(path, index_col=0,header=0)
                 df.index = np.array(df.index).astype(str)
                 sample_dfs.append(df)
@@ -208,6 +207,7 @@ def readCausalFiles(directory):
     renamed = [("-").join(["R",str(name)]) for name in causalData.Regulon]
     causalData.Regulon = renamed
     return causalData
+
 
 def entropy(vector):
 
@@ -2869,7 +2869,7 @@ def parallelCausalNetworkAnalysis(regulon_matrix,expression_matrix,reference_mat
 def wiringDiagram(causal_results,regulonModules,coherent_samples_matrix,include_genes=False,savefile=None):
     cytoscape_output = []
     for regulon in list(set(causal_results.index)):
-
+        # regulon is of type 'str', coherent_samples_matrix indexes are 'int'
         genes = regulonModules[regulon]
         samples = coherent_samples_matrix.columns[coherent_samples_matrix.loc[int(regulon),:]==1]
         condensed_genes = (";").join(genes)
