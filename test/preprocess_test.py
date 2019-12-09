@@ -3,6 +3,7 @@ import sys
 import unittest
 
 import pandas as pd
+import numpy as np
 from miner2 import preprocess
 import logging
 
@@ -56,6 +57,14 @@ class PreprocessTest(unittest.TestCase):
         for i in range(3):
             for j in range(3):
                 self.assertAlmostEquals(exp.values[i, j], -0.8164965809277261)
+
+
+    def test_preprocess_main_simple2(self):
+        ref_exp = pd.read_csv('testdata/expected_pp_exp_data-002.csv', index_col=0, header=0)
+        exp, conv_table = preprocess.main('testdata/exp_data-002.csv', 'testdata/conv_table-002.tsv')
+        #exp.to_csv('testdata/expected_pp_exp_data-002.csv')
+        self.assertTrue(np.isclose(ref_exp, exp).all())
+
 
 if __name__ == '__main__':
     SUITE = []

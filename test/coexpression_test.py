@@ -15,7 +15,10 @@ class CoexpressionTest(unittest.TestCase):
             for line in infile:
                 expected_clusters.append(line.strip().split(','))
         clusters = coexpression.cluster(exp)
-        self.assertEquals(7, len(clusters))
+        #with open('testdata/expected_clusters-002.csv', 'w') as outfile:
+        #    for cluster in clusters:
+        #        outfile.write('%s\n' % (','.join(cluster)))
+        self.assertEquals(len(expected_clusters), len(clusters))
         self.assertEquals(expected_clusters, clusters)
 
 

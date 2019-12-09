@@ -30,8 +30,8 @@ def identifier_conversion(exp_data, conv_table_path=None):
     for geneType in genetypes:
         subset = idMap[idMap.iloc[:,2]==geneType]
         subset.index = subset.iloc[:,1]
-        mappedGenes = list(set(previousIndex)&set(subset.index))
-        mappedSamples = list(set(previousColumns)&set(subset.index))
+        mappedGenes = sorted(set(previousIndex)&set(subset.index))
+        mappedSamples = sorted(set(previousColumns)&set(subset.index))
         if len(mappedGenes) >= max(10, 0.01 * exp_data.shape[0]):
             if len(mappedGenes)>len(bestMatch):
                 bestMatch = mappedGenes
@@ -311,7 +311,7 @@ def preprocess_tpm(tpm):
     tmp_array_raw = numpy.array(tpm)
     keep = []
     keepappend = keep.append
-    for i in range(0,tmp_array_raw.shape[0]):
+    for i in range(0, tmp_array_raw.shape[0]):
         if numpy.count_nonzero(tmp_array_raw[i,:]) >= round(float(tpm.shape[1])*0.5):
             keepappend(i)
 
@@ -319,7 +319,7 @@ def preprocess_tpm(tpm):
     tpm_array = numpy.array(tpm_zero_filtered)
     positive_medians = []
 
-    for i in range(0,tpm_array.shape[1]):
+    for i in range(0, tpm_array.shape[1]):
         tmp1 = tpm_array[:,i][tpm_array[:,i]>0]
         positive_medians.append(numpy.median(tmp1))
 
@@ -327,11 +327,11 @@ def preprocess_tpm(tpm):
     scale_factors = [float(1023)/positive_medians[i] for i in range(0,len(positive_medians))]
 
     tpm_scale = numpy.zeros(tpm_array.shape)
-    for i in range(0,tpm_scale.shape[1]):
+    for i in range(0, tpm_scale.shape[1]):
         tpm_scale[:,i] = tpm_array[:,i]*scale_factors[i]
 
     tpm_scale_log2 = numpy.zeros(tpm_scale.shape)
-    for i in range(0,tpm_scale_log2.shape[1]):
+    for i in range(0, tpm_scale_log2.shape[1]):
         tpm_scale_log2[:,i] = numpy.log2(tpm_scale[:,i]+1)
 
     tpm_filtered_df = pandas.DataFrame(tpm_scale_log2)
@@ -344,7 +344,7 @@ def preprocess_tpm(tpm):
     qn_tpm_array = numpy.array(qn_tpm)
 
     tpm_z = numpy.zeros(qn_tpm_array.shape)
-    for i in range(0,tpm_z.shape[0]):
+    for i in range(0, tpm_z.shape[0]):
         tmp = qn_tpm_array[i,:][qn_tpm_array[i,:]>0]
         mean = numpy.mean(tmp)
         std = numpy.std(tmp)
