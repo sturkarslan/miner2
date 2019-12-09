@@ -58,6 +58,17 @@ class BiclustersTest(unittest.TestCase):
         self.compare_dicts(ref_undx_membs, undx_membs)
 
 
+    def test_membership_to_incidence(self):
+        exp_data, conv_table = preprocess.main('testdata/ref_exp-000.csv',
+                                               'testdata/identifier_mappings.txt')
+        with open('testdata/ref_ovx_membs-001.json') as infile:
+            ovx_membs = json.load(infile)
+        ref_ovx_matrix = pd.read_csv('testdata/ref_ovx_matrix-001.csv', index_col=0, header=0)
+        ovx_matrix = biclusters.membership_to_incidence(ovx_membs, exp_data)
+        #ovx_matrix.to_csv('testdata/ref_ovx_matrix-001.csv')
+        self.assertTrue(np.isclose(ref_ovx_matrix, ovx_matrix).all())
+
+
 if __name__ == '__main__':
     SUITE = []
     LOG_FORMAT = '%(asctime)s %(message)s'
