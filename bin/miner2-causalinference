@@ -107,3 +107,19 @@ if __name__ == '__main__':
                                        coherent_samples_matrix,
                                        include_genes=False,
                                        savefile=wire_diagram_out)
+
+
+    # Generate Filtered Causal Flows
+    causal_results_regulon_filtered = causal_results[causal_results["-log10(p)_Regulon_stratification"]>=-np.log10(0.05)]
+    causal_results_aligned = causal_results_regulon_filtered[causal_results_regulon_filtered.Fraction_of_edges_correctly_aligned>=0.5]
+    causal_results_aligned_correlated = causal_results_aligned[causal_results_aligned["RegulatorRegulon_Spearman_p-value"]<=0.05]
+    causal_results_stratified_aligned_correlated = causal_results_aligned_correlated[causal_results_aligned_correlated["-log10(p)_MutationRegulatorEdge"]>=-np.log10(0.05)]
+
+    # for all causal flows, 
+    # the regulon is differentially active w.r.t the mutation,
+    # the regulator is differentially active w.r.t the mutation,
+    # the regulator is significantly correlated to the regulon,
+    # and the directionality of at least half of the differentially active targets 
+    # downstream of the regulator are consistent with the perturbation from the mutation
+    causal_results_stratified_aligned_correlated.to_csv(os.path.join(args.outdir,
+                                                                     "filteredCausalResults.csv"))
