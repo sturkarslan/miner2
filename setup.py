@@ -8,8 +8,8 @@ PACKAGE_DATA = {
     }
 
 setuptools.setup(
-    name="miner2",
-    version="0.0.9",
+    name="isb_miner2",
+    version="0.1.0",
     author="Adrian Lopez Garcia de Lomana",
     author_email="alomana@systemsbiology.org",
     description="A newer version of MINER.",
@@ -34,4 +34,4 @@ setuptools.setup(
     scripts=['bin/miner2-coexpr', 'bin/miner2-mechinf',
              'bin/miner2-bcmembers', 'bin/miner2-subtypes',
              'bin/miner2-survival', 'bin/miner2-causalinf-pre',
-             'bin/miner2-causalinf-post', 'bin/miner2-neo', 'bin/miner2-riskclassifier'])
+             'bin/miner2-causalinf-post', 'bin/miner2-neo', 'bin/miner2-riskpredict'])

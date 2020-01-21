@@ -92,7 +92,7 @@ if __name__ == '__main__':
         if len(final_state) > 0:
             states_list.append(final_state)
 
-        states = states_list.copy()
+        states = list(states_list)
         diff_matrix_mmrf = oem_matrix - uem_matrix
 
     survival_mmrf = pd.read_csv(input_spec['primary_survival_data'], index_col=0, header=0)
@@ -370,7 +370,11 @@ if __name__ == '__main__':
 
     plt.xlim(-0.5,N-0.5)
     plt.ylim(-5,110)
-    plt.xticks(ticks=range(len(rank_order)),labels=list(rank_order))
+    try:
+        plt.xticks(ticks=range(len(rank_order)),labels=list(rank_order))
+    except:
+        # solves compatibility issue with pyplot, as it does not work in Python2
+        pass
     plt.legend((p1[0], p2[0]), ('t(11;14)', 't(4;14)'),loc="upper left")
 
     plt.savefig(os.path.join(args.outdir,"barplot_states_translocations.pdf"),
