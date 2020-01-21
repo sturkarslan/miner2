@@ -45,8 +45,18 @@ if __name__ == '__main__':
 
 
     exp_data, conv_table = preprocess.main(input_spec['exp'], input_spec['idmap'])
+
+    common_mutations = pd.read_csv(input_spec['common_mutations'], index_col=0, header=0)
     translocations = pd.read_csv(input_spec['translocations'], index_col=0, header=0)
-    merged_mutations = pd.read_csv(input_spec['mutations'], index_col=0, header=0)
+    cytogenetics = pd.read_csv(input_spec['cytogenetics'], index_col=0, header=0)
+    cytogenetics = cytogenetics.loc[:,list(set(cytogenetics.columns)&set(exp_data.columns))]
+    common_patients_mutations_translocations = list(set(translocations.columns) & set(common_mutations.columns))
+    merged_mutations = pd.concat([common_mutations.loc[:,common_patients_mutations_translocations],
+                                  translocations.loc[:,common_patients_mutations_translocations]],
+                                 axis=0)
+
+
+
     with open(input_spec['coexpression_dictionary']) as infile:
         revised_clusters = json.load(infile)
     with open(input_spec['coexpression_modules']) as infile:
