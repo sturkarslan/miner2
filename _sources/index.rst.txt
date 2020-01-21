@@ -22,5 +22,4 @@ from experimental data.
    miner2-neo <miner_neo>
    miner2-causalinf-post <miner_causalinf_post>
    miner2-causalinference <miner_causalinference>
-   miner2-riskbysubtype <miner_riskbysubtype>
-   miner2-riskclassifier <miner_riskclassifier>
+   miner2-riskpredict <miner_riskpredict>
