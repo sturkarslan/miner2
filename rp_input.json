@@ -1,34 +1,19 @@
 {
-    "regulons": "out-mechinf/regulons.json",
-    "primary_survival": "MATTDATA/survival/survivalIA12.csv",
-    "test_survival": "MATTDATA/survival/globalClinTraining.csv",
-    "datasets": [
-        {
-            "label": "MMRF",
-            "exp": "MATTDATA/expression/IA12Zscore.csv",
-            "idmap": "MATTDATA/identifier_mappings.txt",
-            "primary": true
-        },
-        {
-            "label": "GSE24080UAMS",
-            "exp": "MATTDATA/expression/GSE24080UAMSentrezIDlevel.csv",
-            "idmap": "MATTDATA/identifier_mappings.txt",
-            "primary": false,
-            "survival_subset": "GSE24080UAMS"
-        },
-        {
-            "label": "GSE19784HOVON65",
-            "exp": "MATTDATA/expression/GSE19784HOVON65entrezIDlevel.csv",
-            "idmap": "MATTDATA/identifier_mappings.txt",
-            "primary": false,
-            "survival_subset": "HOVON65"
-        },
-        {
-            "label": "EMTAB4032",
-            "exp": "MATTDATA/expression/EMTAB4032entrezIDlevel.csv",
-            "idmap": "MATTDATA/identifier_mappings.txt",
-            "primary": false,
-            "survival_subset": "EMTAB4032"
-        }
-    ]
+    "exp": "MATTDATA/expression/IA12Zscore.csv",
+    "idmap": "MATTDATA/identifier_mappings.txt",
+    "common_mutations": "MATTDATA/mutations/commonMutations.csv",
+    "cytogenetics": "MATTDATA/mutations/cytogenetics.csv",
+    "translocations": "MATTDATA/mutations/translocationsIA12.csv",
+    "coexpression_dictionary": "MATTRESULT/coexpressionDictionary.json",
+    "coexpression_modules": "MATTRESULT/coexpressionModules.json",
+    "regulon_modules": "MATTRESULT/regulons.json",
+    "mechanistic_output": "MATTRESULT/mechanisticOutput.json",
+    "regulon_df": "MATTRESULT/regulonDf.csv",
+    "overexpressed_members": "MATTRESULT/overExpressedMembers.csv",
+    "underexpressed_members": "MATTRESULT/underExpressedMembers.csv",
+    "eigengenes": "MATTRESULT/eigengenes.csv",
+    "filtered_causal_results": "MATTRESULT/filteredCausalResults.csv",
+    "transcriptional_programs": "MATTRESULT/transcriptional_programs.json",
+    "transcriptional_states": "MATTRESULT/transcriptional_states.json",
+    "primary_survival_data": "MATTDATA/survival/survivalIA12.csv"
 }
