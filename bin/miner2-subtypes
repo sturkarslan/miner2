@@ -169,9 +169,11 @@ if __name__ == '__main__':
     # Cluster patients into subtypes and give the activity of each program in each subtype
     programs_vs_states = subtypes.programs_vs_states(states_df, states,
                                                      filename=os.path.join(args.outdir,
-                                                                           "programs_vs_states.pdf"))
+                                                                           "programs_vs_states.pdf"),
+                                                     showplot=True)
 
     # Visualize with tSNE
+    plt.figure()
     subtypes.tsne(exp_data, perplexity=15, n_components=2, n_iter=1000,
                   plotOnly=True, plotColor="red", alpha=0.4)
     plt.savefig(os.path.join(args.outdir, "tsne_gene_expression.pdf"),

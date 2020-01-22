@@ -8,10 +8,11 @@ PACKAGE_DATA = {
     }
 
 INSTALL_REQUIRES = ['numpy', 'scipy', 'pandas', 'sklearn', 'lifelines',
-                    'matplotlib', 'seaborn', 'xgboost', 'pydot', 'graphviz']
+                    'matplotlib', 'seaborn', # 'xgboost',
+                    'pydot', 'graphviz']
 setuptools.setup(
     name="isb_miner2",
-    version="0.1.1",
+    version="0.1.2",
     author="Adrian Lopez Garcia de Lomana",
     author_email="alomana@systemsbiology.org",
     description="A newer version of MINER.",
