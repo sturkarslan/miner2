@@ -14,6 +14,7 @@ import logging
 
 from miner2 import preprocess, util, mechanistic_inference, GIT_SHA
 from miner2 import __version__ as MINER_VERSION
+from miner2 import miner
 
 
 DESCRIPTION = """miner-mechinf - MINER compute mechanistic inference
@@ -62,15 +63,16 @@ if __name__ == '__main__':
 
     # get first principal component axes of clusters
     t1 = time.time()
+    database_path = os.path.join(args.datadir, "tfbsdb_tf_to_genes.pkl")
     axes = mechanistic_inference.get_principal_df(revised_clusters, exp_data,
                                                   subkey=None, min_number_genes=1)
 
     # analyze revised clusters for enrichment in relational database (default: transcription factor binding site database)
-    database_path = os.path.join(args.datadir, "tfbsdb_tf_to_genes.pkl")
     mechanistic_output = mechanistic_inference.enrichment(axes, revised_clusters, exp_data,
                                                           correlation_threshold=args.mincorr,
                                                           num_cores=NUM_CORES,
                                                           database_path=database_path)
+
 
     # write mechanistic output to .json file
     with open(os.path.join(args.outdir, "mechanisticOutput.json"), 'w') as outfile:

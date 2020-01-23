@@ -8,6 +8,8 @@ import json
 from collections import defaultdict
 
 import miner2.coexpression
+from miner2 import util
+
 
 def axis_tfs(axes_df,tf_list,expression_data,correlation_threshold=0.3):
 
@@ -41,8 +43,7 @@ def axis_tfs(axes_df,tf_list,expression_data,correlation_threshold=0.3):
 def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.3,
                num_cores=1, p=0.05,
                database="tfbsdb_tf_to_genes.pkl",
-               database_path=None,
-               single_cell=False):
+               database_path=None):
 
     logging.info("mechanistic inference")
 
@@ -53,42 +54,28 @@ def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.
         tf_2_genes_path = database_path
 
     with open(tf_2_genes_path, 'rb') as f:
-        tf_2_genes = pickle.load(f)
-
-    if single_cell:
-        # clean tf_2_genes to only include genes in revised_clusters
-        revised_clusters_gene_set = set()
-        for key in sorted(revised_clusters.keys()):
-            revised_clusters_gene_set.update(revised_clusters[key])
-
-        for key in sorted(tf_2_genes.keys()):
-            genes = tf_2_genes[key]
-            new_genes = [gene for gene in genes if gene in revised_clusters_gene_set]
-            tf_2_genes.update({key: new_genes})
+        tfToGenes = pickle.load(f)
 
     if correlation_threshold <= 0:
-        all_genes = [int(len(expression_data.index))]
+        allGenes = [int(len(expression_data.index))]
     elif correlation_threshold > 0:
-        all_genes = list(expression_data.index)
+        allGenes = list(expression_data.index)
 
-    tfs = sorted(tf_2_genes.keys())
-    tf_map = axis_tfs(axes, tfs, expression_data, correlation_threshold=correlation_threshold)
+    tfs = list(tfToGenes.keys())
+    tfMap = axis_tfs(axes,tfs, expression_data, correlation_threshold=correlation_threshold)
+    taskSplit = util.split_for_multiprocessing(list(revised_clusters.keys()), num_cores)
+    tasks = [[taskSplit[i],(allGenes,revised_clusters,tfMap,tfToGenes,p)] for i in range(len(taskSplit))]
+    tfbsdbOutput = multiprocess(tfbsdb_enrichment, tasks)
+    return condense_output(tfbsdbOutput)
 
-    tasks = [[cluster_key,(all_genes,revised_clusters,tf_map,tf_2_genes,p)]
-             for cluster_key in sorted(revised_clusters.keys())]
 
-    hydra = multiprocessing.pool.Pool(num_cores)
-    results = hydra.map(tfbsdb_enrichment, tasks)
-
-    mechanistic_output = {}
-    for result in results:
-        for key in sorted(result.keys()):
-            if key not in mechanistic_output:
-                mechanistic_output[key] = result[key]
-            else:
-                raise Exception('key "%s" twice' % key)
-
-    return mechanistic_output
+def multiprocess(function,tasks):
+    import multiprocessing, multiprocessing.pool
+    hydra=multiprocessing.pool.Pool(len(tasks))  
+    output=hydra.map(function,tasks)   
+    hydra.close()
+    hydra.join()
+    return output
 
 
 def hyper(population,set1,set2,overlap):
@@ -158,31 +145,64 @@ def get_regulon_dictionary(regulons):
 
     return regulon_modules, df
 
+
+
+def condense_output(output,output_type=dict):
+    if output_type is dict:
+        results = {}
+        for i in range(len(output)):
+            resultsDict = output[i]
+            keys = list(resultsDict.keys())
+            for j in range(len(resultsDict)):
+                key = keys[j]
+                results[key] = resultsDict[key]
+        return results
+    elif output_type is not dict:
+        import pandas as pd
+        results = pd.concat(output,axis=0)
+
+    return results
+
+
 def tfbsdb_enrichment(task):
+    start, stop = task[0]
+    allGenes,revisedClusters,tfMap,tfToGenes,p = task[1]
+    keys = list(revisedClusters.keys())[start:stop]
 
-    cluster_key=task[0]
-    all_genes=task[1][0]
-    revised_clusters=task[1][1]
-    tf_map=task[1][2]
-    tf_2_genes=task[1][3]
-    p=task[1][4]
+    if len(allGenes) == 1:
 
-    population_size = len(all_genes)
+        population_size = int(allGenes[0])
+        clusterTfs = {}
+        for key in keys:
+            for tf in tfMap[str(key)]:
+                hits0TfTargets = tfToGenes[tf]
+                hits0clusterGenes = revisedClusters[key]
+                overlapCluster = list(set(hits0TfTargets)&set(hits0clusterGenes))
+                if len(overlapCluster) <= 1:
+                    continue
+                pHyper = hyper(population_size,len(hits0TfTargets),len(hits0clusterGenes),len(overlapCluster))
+                if pHyper < p:
+                    if key not in list(clusterTfs.keys()):
+                        clusterTfs[key] = {}
+                    clusterTfs[key][tf] = [pHyper,overlapCluster]
 
-    cluster_tfs = {}
-    for tf in tf_map[str(cluster_key)]:
-        hits0_tf_targets = tf_2_genes[tf]
-        hits0_cluster_genes = revised_clusters[cluster_key]
-        overlap_cluster = list(set(hits0_tf_targets)&set(hits0_cluster_genes))
-        if len(overlap_cluster) <= 1:
-            continue
-        p_hyper = hyper(population_size,len(hits0_tf_targets),len(hits0_cluster_genes),len(overlap_cluster))
-        if p_hyper < p:
-            if cluster_key not in cluster_tfs.keys():
-                cluster_tfs[cluster_key] = {}
-                cluster_tfs[cluster_key][tf] = [p_hyper,overlap_cluster]
+    elif len(allGenes) > 1:
+        population_size = len(allGenes)
+        clusterTfs = {}
+        for key in keys:
+            for tf in tfMap[str(key)]:
+                hits0TfTargets = list(set(tfToGenes[tf])&set(allGenes))
+                hits0clusterGenes = revisedClusters[key]
+                overlapCluster = list(set(hits0TfTargets)&set(hits0clusterGenes))
+                if len(overlapCluster) <= 1:
+                    continue
+                pHyper = hyper(population_size,len(hits0TfTargets),len(hits0clusterGenes),len(overlapCluster))
+                if pHyper < p:
+                    if key not in list(clusterTfs.keys()):
+                        clusterTfs[key] = {}
+                    clusterTfs[key][tf] = [pHyper,overlapCluster]
 
-    return cluster_tfs
+    return clusterTfs
 
 
 def get_coregulation_modules(mechanistic_output):
