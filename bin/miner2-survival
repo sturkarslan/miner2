@@ -166,7 +166,8 @@ if __name__ == '__main__':
     cox_hr = [cox_programs[i][0] for i in range(len(cox_programs))]
     cox_p = [cox_programs[i][1] for i in range(len(cox_programs))]
     cox_df = pd.DataFrame(np.vstack([cox_hr, cox_p]).T)
-    cox_df.index = [cox_programs.keys()[i] for i in range(len(cox_programs))]
+    cox_programs_keys = list(cox_programs.keys())
+    cox_df.index = [cox_programs_keys[i] for i in range(len(cox_programs))]
     cox_df.columns = ["HR", "p-value"]
     cox_df.sort_values(by="HR", ascending=False, inplace=True)
 
