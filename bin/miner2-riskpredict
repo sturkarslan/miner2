@@ -237,40 +237,45 @@ if __name__ == '__main__':
         miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
                      filename=None,lw=2,color="gray",alpha=0.3)
 
-    highlight_list = [np.hstack([states_list[4],states_list[5],states_list[16],states_list[23]])]
+    try:
+        highlight_list = [np.hstack([states_list[4],states_list[5],states_list[16],states_list[23]])]
 
-    for key in range(len(highlight_list)):
-        median_df = pd.DataFrame(np.zeros(exp_data.shape[1]))
-        median_df.index = exp_data.columns
-        median_df.columns = [key]
-        median_df.loc[highlight_list[key],key] = 1
+        for key in range(len(highlight_list)):
+            median_df = pd.DataFrame(np.zeros(exp_data.shape[1]))
+            median_df.index = exp_data.columns
+            median_df.columns = [key]
+            median_df.loc[highlight_list[key],key] = 1
 
-        cox_hr, cox_p = miner.survivalMembershipAnalysisDirect(median_df, guanSurvivalDfMMRF)
+            cox_hr, cox_p = miner.survivalMembershipAnalysisDirect(median_df, guanSurvivalDfMMRF)
 
-        groups = [median_df.index[np.where(median_df[key]==1)[0]]]
-        labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+            groups = [median_df.index[np.where(median_df[key]==1)[0]]]
+            labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
 
-        miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
-                     filename=None,lw=2,color="red",alpha=1)
+            miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+                         filename=None,lw=2,color="red",alpha=1)
 
-    # Combine high-risk states
-    highlight_list = [np.hstack([states_list[10],states_list[14],states_list[21]])]
+        # Combine high-risk states
+        highlight_list = [np.hstack([states_list[10],states_list[14],states_list[21]])]
 
-    for key in range(len(highlight_list)):
-        median_df = pd.DataFrame(np.zeros(exp_data.shape[1]))
-        median_df.index = exp_data.columns
-        median_df.columns = [key]
-        median_df.loc[highlight_list[key],key] = 1
+        for key in range(len(highlight_list)):
+            median_df = pd.DataFrame(np.zeros(exp_data.shape[1]))
+            median_df.index = exp_data.columns
+            median_df.columns = [key]
+            median_df.loc[highlight_list[key],key] = 1
 
-        cox_hr, cox_p = miner.survivalMembershipAnalysisDirect(median_df, guanSurvivalDfMMRF)
+            cox_hr, cox_p = miner.survivalMembershipAnalysisDirect(median_df, guanSurvivalDfMMRF)
 
-        groups = [median_df.index[np.where(median_df[key]==1)[0]]]
-        labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+            groups = [median_df.index[np.where(median_df[key]==1)[0]]]
+            labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
 
-        miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
-                     filename=None,lw=2,color="blue",alpha=1)
+            miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+                         filename=None,lw=2,color="blue",alpha=1)
 
-    plt.savefig(os.path.join(args.outdir, "kmplots_states.pdf"), bbox_inches="tight")
+        plt.savefig(os.path.join(args.outdir, "kmplots_states.pdf"), bbox_inches="tight")
+    except:
+        # skip plotting the states if that leads to index error
+        # for now
+        pass
 
     # Generate boxplot data for transcriptional states
     survival_patients = list(guanSurvivalDfMMRF.index)
