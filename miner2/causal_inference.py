@@ -11,7 +11,7 @@ from miner2 import util
 def _bicluster_tf_incidence(mechanisticOutput, regulons=None):
 
     if regulons is not None:
-        allTfs = regulons.keys()
+        allTfs = list(regulons.keys())
 
         tfCount = []
         ct = 0

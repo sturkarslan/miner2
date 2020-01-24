@@ -13,9 +13,6 @@ import pydot
 import seaborn as sns
 from graphviz import Source
 
-# xgboost requires different plotting method
-from xgboost import plot_tree
-
 import pickle
 
 from miner2 import risk_predict, survival, util, preprocess, miner

@@ -237,7 +237,7 @@ def readCausalFiles(directory):
             #print('\t%s' % fname)
             extension = fname.split(".")[-1]
             if extension == 'csv':
-                path = os.path.join(rootDir,dirName,fname)
+                path = os.path.join(dirName, fname)
                 df = pd.read_csv(path, index_col=0,header=0)
                 df.index = np.array(df.index).astype(str)
                 sample_dfs.append(df)
@@ -3440,7 +3440,12 @@ def wiringDiagram(causal_results,regulonModules,coherent_samples_matrix,include_
     for regulon in list(set(causal_results.index)):
 
         genes = regulonModules[regulon]
-        samples = coherent_samples_matrix.columns[coherent_samples_matrix.loc[int(regulon),:]==1]
+
+        # I don't know exactly why, but these things happen
+        if int(regulon) not in coherent_samples_matrix.index:
+            continue
+        col = coherent_samples_matrix.loc[int(regulon), :]==1
+        samples = coherent_samples_matrix.columns[col]
         condensed_genes = (";").join(genes)
         condensed_samples = (";").join(samples)
         causal_info = causal_results.loc[regulon,:]
@@ -4072,13 +4077,13 @@ def plotRiskStratification(lbls,mtrx,srv,survival_tag,resultsDirectory=None):
 
     if resultsDirectory is not None:
         plotName = os.path.join(resultsDirectory,kmFilename)
-        kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),filename=plotName)  
+        kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),filename=plotName)
         plt.title('Dataset: '+survival_tag+'; HR: {:.2f}'.format(cox_dict['High-risk'][0]))
 
     elif resultsDirectory is None:
         kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),filename=None)
         plt.title('Dataset: '+survival_tag+'; HR: {:.2f}'.format(cox_dict['High-risk'][0]))
-        
+
     return
 
 def iAUC(srv,mtrx,classifier,plot_all=False):
