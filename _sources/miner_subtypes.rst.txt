@@ -55,3 +55,5 @@ After successful completion there will be the following files in the output dire
   * ``tsne_gene_expression.pdf``
   * ``programs_vs_states.pdf``
   * ``tsne_regulon_activity.pdf``
+  * ``transcriptional_states.json``
+  * ``transcriptional_programs.json``
