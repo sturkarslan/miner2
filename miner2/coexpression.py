@@ -15,78 +15,87 @@ NUM_CORES = 1
 RECONSTRUCTION_THRESHOLD = 0.925
 SIZE_LONG_SET = 50
 
-def cluster(expression_data,
-            min_number_genes=MIN_NUM_GENES,
-            min_number_overexp_samples=MIN_NUM_OVEREXP_SAMPLES,
-            max_samples_excluded=MAX_SAMPLES_EXCLUDED,
-            random_state=RANDOM_STATES,
-            overexpression_threshold=OVEREXP_THRESHOLD,
-            num_cores=NUM_CORES):
-    """
-    Create a list of initial clusters. This is a list of list of gene names
-    """
 
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t coexpression"))
+def cluster(expressionData, min_number_genes=6, min_number_overexp_samples=4,
+            max_samples_excluded=0.50, random_state=12, overexpression_threshold=80,
+            pct_threshold=80):
 
-    df = expression_data.copy()
 
-    max_step = int(numpy.round(10 * max_samples_excluded))
-    all_genes_mapped = []
-    best_hits = []
+    df = expressionData.copy()
+    maxStep = int(numpy.round(10 * max_samples_excluded))
+    allGenesMapped = []
+    bestHits = []
 
-    zero = numpy.percentile(expression_data, 0)
-    expression_threshold = numpy.mean([numpy.percentile(expression_data.iloc[:,i][expression_data.iloc[:,i] > zero], overexpression_threshold) for i in range(expression_data.shape[1])])
+    zero = numpy.percentile(expressionData,0)
+    expressionThreshold = numpy.mean([numpy.percentile(expressionData.iloc[:,i][expressionData.iloc[:,i]>zero], overexpression_threshold) for i in range(expressionData.shape[1])])
 
+    startTimer = time.time()
     trial = -1
+    for step in range(maxStep):
+        trial+=1
+        progress = (100./maxStep)*trial
+        print('{:.2f} percent complete'.format(progress))
+        genesMapped = []
+        bestMapped = []
 
-    for step in range(max_step):
-        print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t working on coexpression step {} out of {}".format(step + 1, max_step)))
-        trial += 1
-        genes_mapped = []
-        best_mapped = []
+        pca = sklearn.decomposition.PCA(10,random_state=random_state)
+        principalComponents = pca.fit_transform(df.T)
+        principalDf = pandas.DataFrame(principalComponents)
+        principalDf.index = df.columns
 
-        pca = sklearn.decomposition.PCA(10, random_state=random_state)
-        principal_components = pca.fit_transform(df.T)
-        principal_df = pandas.DataFrame(principal_components)
-        principal_df.index = df.columns
+        for i in range(10):
+            pearson = pearson_array(numpy.array(df), numpy.array(principalDf[i]))
+            if len(pearson) == 0:
+                continue
+            highpass = max(numpy.percentile(pearson,95), 0.1)
+            lowpass = min(numpy.percentile(pearson,5), -0.1)
+            cluster1 = numpy.array(df.index[numpy.where(pearson > highpass)[0]])
+            cluster2 = numpy.array(df.index[numpy.where(pearson < lowpass)[0]])
 
-        # explore PCs in parallel
-        pcs = numpy.arange(10)
-        tasks = [(df, principal_df, element, min_number_genes) for element in pcs]
-        hydra = multiprocessing.pool.Pool(num_cores)
-        genes_mapped_parallel = hydra.map(gene_mapper, tasks)
-        for element in genes_mapped_parallel:
-            for gene in element:
-                genes_mapped.append(gene)
+            for clst in [cluster1,cluster2]:
+                pdc = recursive_alignment(clst, expression_data=df,
+                                          min_number_genes=min_number_genes,
+                                          pct_threshold=pct_threshold)
+                if len(pdc)==0:
+                    continue
+                elif len(pdc) == 1:
+                    genesMapped.append(pdc[0])
+                elif len(pdc) > 1:
+                    for j in range(len(pdc)-1):
+                        if len(pdc[j]) > min_number_genes:
+                            genesMapped.append(pdc[j])
 
-        all_genes_mapped.extend(genes_mapped)
-
+        allGenesMapped.extend(genesMapped)
         try:
-            stack_genes = numpy.hstack(genes_mapped)
+            stackGenes = numpy.hstack(genesMapped)
         except:
-            stack_genes = []
+            stackGenes = []
+        residualGenes = list(set(df.index)-set(stackGenes))
+        df = df.loc[residualGenes,:]
 
-        residual_genes = sorted(list(set(df.index) - set(stack_genes)))
-        df = df.loc[residual_genes, :]
+        # computationally fast surrogate for passing the overexpressed significance test:
+        for ix in range(len(genesMapped)):
+            tmpCluster = expressionData.loc[genesMapped[ix],:]
+            tmpCluster[tmpCluster<expressionThreshold] = 0
+            tmpCluster[tmpCluster>0] = 1
+            sumCluster = numpy.array(numpy.sum(tmpCluster, axis=0))
+            numHits = numpy.where(sumCluster > 0.333 * len(genesMapped[ix]))[0]
+            bestMapped.append(numHits)
+            if len(numHits) > min_number_overexp_samples:
+                bestHits.append(genesMapped[ix])
 
-        # significance surrogate in parallel
-        tasks = [(element, expression_data, expression_threshold)
-                 for element in genes_mapped]
-        parallel_hits = hydra.map(parallel_overexpress_surrogate, tasks)
-
-        for element, hits in parallel_hits:
-            best_mapped.append(hits)
-            if len(hits) > min_number_overexp_samples:
-                best_hits.append(element)
-
-        if len(best_mapped) > 0:
-            count_hits = Counter(numpy.hstack(best_mapped))
-            ranked = count_hits.most_common()
-            dominant = [i[0] for i in ranked[0:int(numpy.ceil(0.1 * len(ranked)))]]
+        if len(bestMapped) > 0:
+            countHits = Counter(numpy.hstack(bestMapped))
+            ranked = countHits.most_common()
+            dominant = [i[0] for i in ranked[0:int(numpy.ceil(0.1*len(ranked)))]]
             remainder = [i for i in numpy.arange(df.shape[1]) if i not in dominant]
-            df = df.iloc[:, remainder]
+            df = df.iloc[:,remainder]
 
-    return sorted(best_hits, key=lambda s: -len(s))
+    bestHits.sort(key=lambda s: -len(s))
+
+    stopTimer = time.time()
+    print('\ncoexpression clustering completed in {:.2f} minutes'.format((stopTimer-startTimer)/60.))
+    return bestHits
 
 
 def combine_clusters(axes, clusters, threshold):
@@ -108,53 +117,60 @@ def combine_clusters(axes, clusters, threshold):
     return revised_clusters
 
 
-def decompose(geneset, expression_data, min_number_genes):
-    fm = make_frequency_matrix(expression_data.loc[geneset,:])
-    tst = numpy.multiply(fm, fm.T)
-    tst[tst < numpy.percentile(tst, 80)] = 0
-    tst[tst > 0] = 1
+def decompose(geneset, expressionData, minNumberGenes=6, pct_threshold=80):
+    fm = make_frequency_matrix(expressionData.loc[geneset,:])
+    tst = numpy.multiply(fm,fm.T)
+    tst[tst < numpy.percentile(tst,pct_threshold)]=0
+    tst[tst > 0]=1
     unmix_tst = unmix(tst)
-    return [i for i in unmix_tst if len(i) >= min_number_genes]
+    unmixedFiltered = [i for i in unmix_tst if len(i)>=minNumberGenes]
+    return unmixedFiltered
 
 
 def decompose_dictionary_to_lists(dict_):
-    decomposed_sets = []
-    for key in dict_.keys():
-        new_set = iterative_combination(dict_, key, NUM_ITERATIONS)
-        if new_set not in decomposed_sets:
-            decomposed_sets.append(new_set)
-    return decomposed_sets
+    decomposedSets = []
+    for key in list(dict_.keys()):
+        newSet = iterative_combination(dict_, key, iterations=NUM_ITERATIONS)
+        if newSet not in decomposedSets:
+            decomposedSets.append(newSet)
+    return decomposedSets
 
 
-def make_frequency_matrix(matrix, overexp_threshold=1):
+def make_frequency_matrix(matrix, overExpThreshold = 1):
 
-    num_rows = matrix.shape[0]
-
+    final_index = None
     if type(matrix) == pandas.core.frame.DataFrame:
-        index = matrix.index
+        final_index = matrix.index
         matrix = numpy.array(matrix)
-    else:
-        index = numpy.arange(numRows)
 
-    matrix[matrix < overexp_threshold] = 0
-    matrix[matrix > 0] = 1
+    index = numpy.arange(matrix.shape[0])
+    matrix[matrix<overExpThreshold] = 0
+    matrix[matrix>0] = 1
+    frequency_dictionary = {name:[] for name in index}
 
-    frequency_matrix = make_hits_matrix_new(matrix)
-    trace_fm = numpy.array([frequency_matrix[i,i]
-                           for i in range(frequency_matrix.shape[0])]).astype(float)
+    for column in range(matrix.shape[1]):
+        hits = numpy.where(matrix[:,column]>0)[0]
+        geneset = index[hits]
+        for name in geneset:
+            frequency_dictionary[name].extend(geneset)
 
-    if numpy.count_nonzero(trace_fm) < len(trace_fm):
-        #subset nonzero. computefm. normFM zeros with input shape[0]. overwrite by slice np.where trace>0
-        nonzero_genes = numpy.where(trace_fm > 0)[0]
-        norm_fm_nonzero = numpy.transpose(numpy.transpose(frequency_matrix[nonzero_genes,:][:, nonzero_genes]) /
-                                          trace_fm[nonzero_genes])
-        norm_df = pandas.DataFrame(norm_fm_nonzero, index=index[nonzero_genes],
-                                   columns=index[nonzero_genes])
-    else:
-        norm_fm = numpy.transpose(numpy.transpose(frequency_matrix) / trace_fm)
-        norm_df = pandas.DataFrame(norm_fm, index=index, columns=index)
+    fm = numpy.zeros((len(index),len(index)))
+    for key in list(frequency_dictionary.keys()):
+        tmp = frequency_dictionary[key]
+        if len(tmp) == 0:
+            continue
+        count = Counter(tmp)
+        results_ = numpy.vstack(list(count.items()))
+        fm[key,results_[:,0]] = results_[:,1]/float(count[key])
 
-    return norm_df
+    fm_df = pandas.DataFrame(fm)
+
+    if final_index is not None:
+        fm_df.index = final_index
+        fm_df.columns = final_index
+
+    return fm_df
+
 
 
 def get_axes(clusters, expression_data):
@@ -190,25 +206,24 @@ def gene_mapper(task):
     return genes_mapped
 
 
-def iterative_combination(dict_, key, iterations):
+def iterative_combination(dict_, key, iterations=25):
     initial = dict_[key]
-    initial_length = len(initial)
-
+    initialLength = len(initial)
     for iteration in range(iterations):
         revised = [i for i in initial]
         for element in initial:
-            # WW: sorting for comparability
-            revised = sorted(list(set(revised) | set(dict_[element])))
-        revised_length = len(revised)
-        if revised_length == initial_length:
+            revised = list(set(revised)|set(dict_[element]))
+        revisedLength = len(revised)
+        if revisedLength == initialLength:
             return revised
-        elif revised_length > initial_length:
+        elif revisedLength > initialLength:
             initial = [i for i in revised]
-            initial_length = len(initial)
+            initialLength = len(initial)
     return revised
 
 
-def make_hits_matrix_new(matrix): ### new function developped by Wei-Ju
+
+def make_hits_matrix_new(matrix): ### new function developed by Wei-Ju
     num_rows = matrix.shape[0]
     hits_values = numpy.zeros((num_rows,num_rows))
 
@@ -259,11 +274,11 @@ def pearson_array(array, vector):
     return numpy.sum(product_array, axis=1) / float(product_array.shape[1]-1)
 
 
-def process_coexpression_lists(lists, expression_data, threshold):
-    reconstructed = reconstruction(lists, expression_data, threshold)
-    reconstructed_list = [reconstructed[i] for i in reconstructed.keys()]
-    reconstructed_list.sort(key = lambda s: -len(s))
-    return reconstructed_list
+def process_coexpression_lists(lists,expressionData,threshold=0.925):
+    reconstructed = reconstruction(lists,expressionData,threshold)
+    reconstructedList = [reconstructed[i] for i in reconstructed.keys()]
+    reconstructedList.sort(key = lambda s: -len(s))
+    return reconstructedList
 
 
 def reconstruction(decomposed_list, expression_data, threshold=RECONSTRUCTION_THRESHOLD):
@@ -272,92 +287,83 @@ def reconstruction(decomposed_list, expression_data, threshold=RECONSTRUCTION_TH
     return combine_clusters(axes, clusters, threshold)
 
 
-def recursive_alignment(geneset, expression_data, min_number_genes):
-    rec_decomp = recursive_decomposition(geneset, expression_data, min_number_genes)
-    if len(rec_decomp) == 0:
-        return []
-    reconstructed = reconstruction(rec_decomp, expression_data)
-
-    # ALO: call list() on keys() changed to list because of Python3 behaviour
-    reconstructed_list = [reconstructed[i] for i in list(reconstructed.keys())
-                          if len(reconstructed[i]) > min_number_genes]
-    return sorted(reconstructed_list, key=lambda s: -len(s))
-
-
-def recursive_decomposition(geneset, expression_data, min_number_genes):
-    unmixed_filtered = decompose(geneset, expression_data, min_number_genes)
-    if len(unmixed_filtered) == 0:
+def recursive_alignment(geneset, expression_data, min_number_genes=6, pct_threshold=80):
+    recDecomp = recursive_decomposition(geneset, expression_data, min_number_genes, pct_threshold)
+    if len(recDecomp) == 0:
         return []
 
-    short_sets = [i for i in unmixed_filtered if len(i) < SIZE_LONG_SET]
-    long_sets = [i for i in unmixed_filtered if len(i) >= SIZE_LONG_SET]
+    reconstructed = reconstruction(recDecomp,expression_data)
+    reconstructedList = [reconstructed[i] for i in list(reconstructed.keys())
+                         if len(reconstructed[i]) > min_number_genes]
+    reconstructedList.sort(key = lambda s: -len(s))
+    return reconstructedList
 
-    if len(long_sets) == 0:
-        return unmixed_filtered
 
-    for ls in long_sets:
-        unmixed_filtered = decompose(ls, expression_data, min_number_genes)
-        if len(unmixed_filtered) == 0:
+def recursive_decomposition(geneset, expressionData, minNumberGenes=6, pct_threshold=80):
+    unmixedFiltered = decompose(geneset,expressionData,minNumberGenes,pct_threshold)
+    if len(unmixedFiltered) == 0:
+        return []
+    shortSets = [i for i in unmixedFiltered if len(i)<50]
+    longSets = [i for i in unmixedFiltered if len(i)>=50]
+    if len(longSets)==0:
+        return unmixedFiltered
+    for ls in longSets:
+        unmixedFiltered = decompose(ls,expressionData,minNumberGenes,pct_threshold)
+        if len(unmixedFiltered)==0:
             continue
-        short_sets.extend(unmixed_filtered)
-    return short_sets
+        shortSets.extend(unmixedFiltered)
+    return shortSets
 
 
-def revise_initial_clusters(cluster_list, expression_data, threshold=RECONSTRUCTION_THRESHOLD):
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t genes clustered: {}".format(len(set(numpy.hstack(cluster_list))))))
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t revising initial clusters"))
-    coexpression_lists = process_coexpression_lists(cluster_list, expression_data, threshold)
+def revise_initial_clusters(clusterList, expressionData, threshold=RECONSTRUCTION_THRESHOLD):
+    coexpressionLists = process_coexpression_lists(clusterList,expressionData,threshold)
+    coexpressionLists.sort(key= lambda s: -len(s))
 
     for iteration in range(5):
-        previous_length = len(coexpression_lists)
-        coexpression_lists = process_coexpression_lists(coexpression_lists,
-                                                        expression_data,
-                                                        threshold)
-        new_length = len(coexpression_lists)
-        if new_length == previous_length:
+        previousLength = len(coexpressionLists)
+        coexpressionLists = process_coexpression_lists(coexpressionLists,expressionData,threshold)
+        newLength = len(coexpressionLists)
+        if newLength == previousLength:
             break
 
-    coexpression_dict = {str(i):list(coexpression_lists[i])
-                         for i in range(len(coexpression_lists))}
+    coexpressionLists.sort(key= lambda s: -len(s))
+    coexpressionDict = {str(i):list(coexpressionLists[i]) for i in range(len(coexpressionLists))}
 
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t revision completed"))
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t genes clustered: {}".format(len(set(numpy.hstack(cluster_list))))))
-    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t unique clusters: {}".format(len(coexpression_dict))))
-
-    return coexpression_dict
+    return coexpressionDict
 
 
-def unmix(df, iterations=NUM_ITERATIONS, return_all=False):
-    frequency_clusters = []
+def unmix(df, iterations=NUM_ITERATIONS, return_all=False):    
+    frequencyClusters = []
+
     for iteration in range(iterations):
-        # WW: replaced it with the old idxmax()
-        # call for now before checking against Python 3
-        max_sum = df.sum(axis=1).idxmax()
-        """# ALO: consistent return in case of ties
-        sum_df1 = df.sum(axis=1)
-        selected=sumDf1[sumDf1.values == sumDf1.values.max()]
-        chosen=selected.index.tolist()
-        if len(chosen) > 1:
-            chosen.sort()
-        max_sum=chosen[0]
-        # end ALO"""
-
-        hits = numpy.where(df.loc[max_sum] > 0)[0]
-        hit_index = list(df.index[hits])
-        block = df.loc[hit_index, hit_index]
-        block_sum = block.sum(axis=1)
-        core_block = list(block_sum.index[numpy.where(block_sum >= numpy.median(block_sum))[0]])
-
-        # WW: sorting for comparability
-        remainder = sorted(list(set(df.index) - set(core_block)))
-        frequency_clusters.append(core_block)
-        if len(remainder) == 0:
-            return frequency_clusters
-        if len(core_block) == 1:
-            return frequency_clusters
-        df = df.loc[remainder, remainder]
-
+        sumDf1 = df.sum(axis=1)
+        maxSum = df.index[numpy.argmax(numpy.array(sumDf1))]
+        hits = numpy.where(df.loc[maxSum] > 0)[0]
+        hitIndex = list(df.index[hits])
+        block = df.loc[hitIndex,hitIndex]
+        blockSum = block.sum(axis=1)
+        coreBlock = list(blockSum.index[numpy.where(blockSum>=numpy.median(blockSum))[0]])
+        remainder = list(set(df.index)-set(coreBlock))
+        frequencyClusters.append(coreBlock)
+        if len(remainder)==0:
+            return frequencyClusters
+        if len(coreBlock)==1:
+            return frequencyClusters
+        df = df.loc[remainder,remainder]
     if return_all:
-        frequency_clusters.append(remainder)
+        frequencyClusters.append(remainder)
+    return frequencyClusters
 
-    return frequency_clusters
+
+def remix(df,frequencyClusters):
+    finalClusters = []
+    for cluster in frequencyClusters:
+        sliceDf = df.loc[cluster,:]
+        sumSlice = sliceDf.sum(axis=0)
+        cut = min(0.8,numpy.percentile(sumSlice.loc[cluster]/float(len(cluster)),90))
+        minGenes = max(4,cut*len(cluster))
+        keepers = list(sliceDf.columns[numpy.where(sumSlice>=minGenes)[0]])
+        keepers = list(set(keepers)|set(cluster))
+        finalClusters.append(keepers)
+        finalClusters.sort(key = lambda s: -len(s))
+    return finalClusters

@@ -666,21 +666,6 @@ def recursiveDecomposition(geneset,expressionData,minNumberGenes=6,pct_threshold
         shortSets.extend(unmixedFiltered)
     return shortSets
 
-#def recursiveDecomposition(geneset,expressionData,minNumberGenes=6,pct_threshold=80):
-#
-#    unmixedFiltered = decompose(geneset,expressionData,minNumberGenes=minNumberGenes)   
-#    if len(unmixedFiltered) == 0:
-#        return []
-#    shortSets = [i for i in unmixedFiltered if len(i)<50]
-#    longSets = [i for i in unmixedFiltered if len(i)>=50]    
-#    if len(longSets)==0:
-#        return unmixedFiltered
-#    for ls in longSets:
-#        unmixedFiltered = decompose(ls,expressionData,minNumberGenes=minNumberGenes)
-#        if len(unmixedFiltered)==0:
-#            continue
-#        shortSets.extend(unmixedFiltered)
-#    return shortSets
 
 def iterativeCombination(dict_,key,iterations=25):    
     initial = dict_[key]
@@ -751,87 +736,6 @@ def recursiveAlignment(geneset,expressionData,minNumberGenes=6,pct_threshold=80)
     reconstructedList.sort(key = lambda s: -len(s))
     return reconstructedList
 
-#def cluster(expressionData,minNumberGenes = 6,minNumberOverExpSamples=4,maxSamplesExcluded=0.50,random_state=12,overExpressionThreshold=80):
-#
-#    try:
-#        df = expressionData.copy()
-#        maxStep = int(np.round(10*maxSamplesExcluded))
-#        allGenesMapped = []
-#        bestHits = []
-#
-#        zero = np.percentile(expressionData,0)
-#        expressionThreshold = np.mean([np.percentile(expressionData.iloc[:,i][expressionData.iloc[:,i]>zero],overExpressionThreshold) for i in range(expressionData.shape[1])])
-#
-#        startTimer = time.time()
-#        trial = -1
-#        for step in range(maxStep):
-#            trial+=1
-#            progress = (100./maxStep)*trial
-#            print('{:.2f} percent complete'.format(progress))
-#            genesMapped = []
-#            bestMapped = []
-#
-#            pca = PCA(10,random_state=random_state)
-#            principalComponents = pca.fit_transform(df.T)
-#            principalDf = pd.DataFrame(principalComponents)
-#            principalDf.index = df.columns
-#
-#            for i in range(10):
-#                pearson = pearson_array(np.array(df),np.array(principalDf[i]))
-#                if len(pearson) == 0:
-#                    continue
-#                highpass = max(np.percentile(pearson,95),0.1)
-#                lowpass = min(np.percentile(pearson,5),-0.1)
-#                cluster1 = np.array(df.index[np.where(pearson>highpass)[0]])
-#                cluster2 = np.array(df.index[np.where(pearson<lowpass)[0]])
-#
-#                for clst in [cluster1,cluster2]:
-#                    pdc = recursiveAlignment(clst,expressionData=df,minNumberGenes=minNumberGenes)
-#                    if len(pdc)==0:
-#                        continue
-#                    elif len(pdc) == 1:
-#                        genesMapped.append(pdc[0])
-#                    elif len(pdc) > 1:
-#                        for j in range(len(pdc)-1):
-#                            if len(pdc[j]) > minNumberGenes:
-#                                genesMapped.append(pdc[j])
-#
-#            allGenesMapped.extend(genesMapped)
-#            try:
-#                stackGenes = np.hstack(genesMapped)
-#            except:
-#                stackGenes = []
-#            residualGenes = list(set(df.index)-set(stackGenes))
-#            df = df.loc[residualGenes,:]
-#
-#            # computationally fast surrogate for passing the overexpressed significance test:
-#            for ix in range(len(genesMapped)):
-#                tmpCluster = expressionData.loc[genesMapped[ix],:]
-#                tmpCluster[tmpCluster<expressionThreshold] = 0
-#                tmpCluster[tmpCluster>0] = 1
-#                sumCluster = np.array(np.sum(tmpCluster,axis=0))
-#                numHits = np.where(sumCluster>0.333*len(genesMapped[ix]))[0]
-#                bestMapped.append(numHits)
-#                if len(numHits)>minNumberOverExpSamples:
-#                    bestHits.append(genesMapped[ix])
-#
-#            if len(bestMapped)>0:            
-#                countHits = Counter(np.hstack(bestMapped))
-#                ranked = countHits.most_common()
-#                dominant = [i[0] for i in ranked[0:int(np.ceil(0.1*len(ranked)))]]
-#                remainder = [i for i in np.arange(df.shape[1]) if i not in dominant]
-#                df = df.iloc[:,remainder]
-#
-#        bestHits.sort(key=lambda s: -len(s))
-#
-#        stopTimer = time.time()
-#        print('\ncoexpression clustering completed in {:.2f} minutes'.format((stopTimer-startTimer)/60.))
-#
-#    except:
-#        print('\nClustering failed. Ensure that expression data is formatted with genes as rows and samples as columns.')
-#        print('Consider transposing data (expressionData = expressionData.T) and retrying')
-#
-#    return bestHits
 
 def cluster(expressionData,minNumberGenes = 6,minNumberOverExpSamples=4,maxSamplesExcluded=0.50,random_state=12,overExpressionThreshold=80,pct_threshold=80):
 
@@ -897,7 +801,7 @@ def cluster(expressionData,minNumberGenes = 6,minNumberOverExpSamples=4,maxSampl
             if len(numHits)>minNumberOverExpSamples:
                 bestHits.append(genesMapped[ix])
 
-        if len(bestMapped)>0:            
+        if len(bestMapped) > 0:
             countHits = Counter(np.hstack(bestMapped))
             ranked = countHits.most_common()
             dominant = [i[0] for i in ranked[0:int(np.ceil(0.1*len(ranked)))]]
@@ -908,7 +812,6 @@ def cluster(expressionData,minNumberGenes = 6,minNumberOverExpSamples=4,maxSampl
 
     stopTimer = time.time()
     print('\ncoexpression clustering completed in {:.2f} minutes'.format((stopTimer-startTimer)/60.))
-
     return bestHits
 
 def backgroundDf(expressionData):
@@ -1402,23 +1305,6 @@ def getCoregulationModules(mechanisticOutput):
             genes = mechanisticOutput[i][key][1]
             coregulationModules[key][i] = genes
     return coregulationModules
-
-#def getRegulons(coregulationModules,minNumberGenes=5,freqThreshold = 0.333):
-#
-#    regulons = {}
-#    keys = list(coregulationModules.keys())
-#    for i in range(len(keys)):
-#        tf = keys[i]
-#        normDf = coincidenceMatrix(coregulationModules,key=i,freqThreshold = 0.333)
-#        unmixed = unmix(normDf)   
-#        remixed = remix(normDf,unmixed)
-#        if len(remixed)>0:
-#            for cluster in remixed:
-#                if len(cluster)>minNumberGenes:
-#                    if tf not in list(regulons.keys()):
-#                        regulons[tf] = {}
-#                    regulons[tf][len(regulons[tf])] = cluster                    
-#    return regulons
 
 #Changed > to >= in minNumberGenes
 def getRegulons(coregulationModules,minNumberGenes=5,freqThreshold = 0.333):
