@@ -7,38 +7,33 @@ import logging
 import json
 from collections import defaultdict
 
-import miner2.coexpression
-from miner2 import util
+from miner2 import util, coexpression
 
 
-def axis_tfs(axes_df,tf_list,expression_data,correlation_threshold=0.3):
-
-    axes_array = numpy.array(axes_df.T)
+def axis_tfs(axesDf, tfList, expressionData, correlation_threshold=0.3):
+    axesArray = numpy.array(axesDf.T)
     if correlation_threshold > 0:
-        tf_array=numpy.array(expression_data.reindex(tf_list)) # ALO Py3
-    axes = numpy.array(axes_df.columns)
-    tf_dict = {}
+        tfArray = numpy.array(expressionData.loc[tfList,:])
+    axes = numpy.array(axesDf.columns)
+    tfDict = {}
 
-    if type(tf_list) is list:
-        tfs = numpy.array(tf_list)
-    elif type(tf_list) is not list:
-        tfs = tf_list
+    if type(tfList) is list:
+        tfs = numpy.array(tfList)
+    elif type(tfList) is not list:
+        tfs = np.array(list(tfList))
 
     if correlation_threshold == 0:
-        for axis in range(axes_array.shape[0]):
-            tf_dict[axes[axis]] = tfs
+        for axis in range(axesArray.shape[0]):
+            tfDict[axes[axis]] = tfs
+        return tfDict
 
-        return tf_dict
+    for axis in range(axesArray.shape[0]):
+        tfDict_key = axes[axis]
+        tfCorrelation = coexpression.pearson_array(tfArray,axesArray[axis,:])
+        tfDict[tfDict_key] = tfs[numpy.where(numpy.abs(tfCorrelation) >= correlation_threshold)[0]]
+    return tfDict
 
-    for axis in range(axes_array.shape[0]):
-        tf_correlation = miner2.coexpression.pearson_array(tf_array,axes_array[axis,:])
-        ### ALO, fixed warning over nan evaluations
-        condition1=numpy.greater_equal(numpy.abs(tf_correlation),correlation_threshold,where=numpy.isnan(tf_correlation) == False)
-        condition2=numpy.isnan(tf_correlation)
-        tf_dict[axes[axis]]=tfs[numpy.where(numpy.bitwise_and(condition1 == True, condition2 == False))[0]]
-        ### end ALO
 
-    return tf_dict
 
 def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.3,
                num_cores=1, p=0.05,
@@ -62,9 +57,10 @@ def enrichment(axes, revised_clusters, expression_data, correlation_threshold=0.
         allGenes = list(expression_data.index)
 
     tfs = list(tfToGenes.keys())
-    tfMap = axis_tfs(axes,tfs, expression_data, correlation_threshold=correlation_threshold)
+    tfMap = axis_tfs(axes, tfs, expression_data, correlation_threshold=correlation_threshold)
     taskSplit = util.split_for_multiprocessing(list(revised_clusters.keys()), num_cores)
-    tasks = [[taskSplit[i],(allGenes,revised_clusters,tfMap,tfToGenes,p)] for i in range(len(taskSplit))]
+    tasks = [[taskSplit[i], (allGenes, revised_clusters, tfMap, tfToGenes, p)]
+             for i in range(len(taskSplit))]
     tfbsdbOutput = multiprocess(tfbsdb_enrichment, tasks)
     return condense_output(tfbsdbOutput)
 
@@ -87,64 +83,59 @@ def hyper(population,set1,set2,overlap):
 
     return prb
 
-def get_principal_df(revised_clusters, expression_data, regulons=None,
-                     subkey='genes', min_number_genes=8, random_state=12):
 
-    logging.info("preparing mechanistic inference")
-
-    pc_Dfs = []
-    set_index = set(expression_data.index)
+def get_principal_df(dict_, expressionData, regulons=None, subkey='genes',
+                     min_number_genes=8, random_state=12):
+    pcDfs = []
+    setIndex = set(expressionData.index)
 
     if regulons is not None:
-        revised_clusters, df = get_regulon_dictionary(regulons)
-
-    for i in sorted(revised_clusters.keys()):
+        dict_, df = regulonDictionary(regulons)
+    for i in list(dict_.keys()):
         if subkey is not None:
-            genes = sorted(set(revised_clusters[i][subkey])&set_index)
+            genes = list(set(dict_[i][subkey])&setIndex)
             if len(genes) < min_number_genes:
                 continue
         elif subkey is None:
-            genes = sorted(set(revised_clusters[i])&set_index)
+            genes = list(set(dict_[i])&setIndex)
             if len(genes) < min_number_genes:
                 continue
 
-        pca = sklearn.decomposition.PCA(1,random_state=random_state)
-        principal_components = pca.fit_transform(expression_data.loc[genes,:].T)
-        principal_Df = pandas.DataFrame(principal_components)
-        principal_Df.index = expression_data.columns
-        principal_Df.columns = [str(i)]
+        pca = sklearn.decomposition.PCA(1, random_state=random_state)
+        principalComponents = pca.fit_transform(expressionData.loc[genes,:].T)
+        principalDf = pandas.DataFrame(principalComponents)
+        principalDf.index = expressionData.columns
+        principalDf.columns = [str(i)]
 
-        norm_PC = numpy.linalg.norm(numpy.array(principal_Df.iloc[:,0]))
-        pearson = scipy.stats.pearsonr(principal_Df.iloc[:,0],
-                                       numpy.median(expression_data.loc[genes,:],
-                                                    axis=0))
-        sign_correction = pearson[0] / numpy.abs(pearson[0])
+        normPC = numpy.linalg.norm(numpy.array(principalDf.iloc[:,0]))
+        pearson = scipy.stats.pearsonr(principalDf.iloc[:,0],
+                                       numpy.median(expressionData.loc[genes,:], axis=0))
+        signCorrection = pearson[0] / numpy.abs(pearson[0])
+        principalDf = signCorrection * principalDf / normPC
 
-        principal_Df = sign_correction * principal_Df / norm_PC
+        pcDfs.append(principalDf)
 
-        pc_Dfs.append(principal_Df)
+    principalMatrix = pandas.concat(pcDfs, axis=1)
+    return principalMatrix
 
-    principal_matrix = pandas.concat(pc_Dfs, axis=1)
-    return principal_matrix
 
 def get_regulon_dictionary(regulons):
-    regulon_modules = {}
+    regulonModules = {}
     df_list = []
 
-    for tf in sorted(regulons.keys()):
-        for key in sorted(regulons[tf].keys()):
+    for tf in list(regulons.keys()):
+        for key in list(regulons[tf].keys()):
             genes = regulons[tf][key]
-            id_ = str(len(regulon_modules))
-            regulon_modules[id_] = regulons[tf][key]
+            id_ = str(len(regulonModules))
+            regulonModules[id_] = regulons[tf][key]
             for gene in genes:
                 df_list.append([id_,tf,gene])
 
     array = numpy.vstack(df_list)
     df = pandas.DataFrame(array)
-    df.columns = ["Regulon_ID","Regulator","Gene"]
+    df.columns = ["Regulon_ID", "Regulator", "Gene"]
 
-    return regulon_modules, df
-
+    return regulonModules, df
 
 
 def condense_output(output,output_type=dict):
@@ -158,15 +149,14 @@ def condense_output(output,output_type=dict):
                 results[key] = resultsDict[key]
         return results
     elif output_type is not dict:
-        import pandas as pd
-        results = pd.concat(output,axis=0)
+        results = pandas.concat(output, axis=0)
 
     return results
 
 
 def tfbsdb_enrichment(task):
     start, stop = task[0]
-    allGenes,revisedClusters,tfMap,tfToGenes,p = task[1]
+    allGenes, revisedClusters, tfMap, tfToGenes, p = task[1]
     keys = list(revisedClusters.keys())[start:stop]
 
     if len(allGenes) == 1:
@@ -216,88 +206,50 @@ def get_coregulation_modules(mechanistic_output):
     return coregulation_modules
 
 
-def get_regulons(coregulation_modules, min_number_genes=5, freq_threshold=0.333):
+def get_regulons(coregulationModules, min_number_genes=5, freq_threshold=0.333):
     regulons = {}
-
-    for tf in sorted(coregulation_modules.keys()):
-        norm_df = coincidence_matrix(coregulation_modules[tf], freq_threshold)
-        unmixed = unmix(norm_df)
-        remixed = remix(norm_df, unmixed)
-
+    keys = list(coregulationModules.keys())
+    for i in range(len(keys)):
+        tf = keys[i]
+        normDf = coincidence_matrix(coregulationModules, key=i, freq_threshold=freq_threshold)
+        unmixed = coexpression.unmix(normDf)
+        remixed = coexpression.remix(normDf, unmixed)
         if len(remixed) > 0:
             for cluster in remixed:
-                if len(cluster) > min_number_genes:
-                    if tf not in regulons.keys():
+                if len(cluster) >= min_number_genes:
+                    if tf not in list(regulons.keys()):
                         regulons[tf] = {}
                     regulons[tf][len(regulons[tf])] = cluster
     return regulons
 
 
-def coincidence_matrix(sub_regulons, freq_threshold):
-    sr_genes = sorted(set(numpy.hstack([sub_regulons[i] for i in sorted(sub_regulons.keys())])))
+def coincidence_matrix(coregulationModules, key, freq_threshold=0.333):
+    tf = list(coregulationModules.keys())[key]
+    subRegulons = coregulationModules[tf]
+    srGenes = list(set(numpy.hstack([subRegulons[i] for i in subRegulons.keys()])))
 
-    template = pandas.DataFrame(numpy.zeros((len(sr_genes), len(sr_genes))))
-    template.index = sr_genes
-    template.columns = sr_genes
+    template = pandas.DataFrame(numpy.zeros((len(srGenes), len(srGenes))))
+    template.index = srGenes
+    template.columns = srGenes
 
-    for key in sorted(sub_regulons.keys()):
-        genes = sub_regulons[key]
-        template.loc[genes, genes] += 1
+    for key in list(subRegulons.keys()):
+        genes = subRegulons[key]
+        template.loc[genes,genes]+=1
+    trace = numpy.array([template.iloc[i,i] for i in range(template.shape[0])]).astype(float)
+    normDf = ((template.T)/trace).T
+    normDf[normDf < freq_threshold] = 0
+    normDf[normDf > 0] = 1
 
-    trace = numpy.array([template.iloc[i, i] for i in range(template.shape[0])]).astype(float)
-    norm_df = ((template.T) / trace).T
-    norm_df[norm_df < freq_threshold] = 0
-    norm_df[norm_df > 0] = 1
-
-    return norm_df
-
-
-def unmix(df, iterations=25, return_all=False):
-    frequency_clusters = []
-
-    for iteration in range(iterations):
-        sum_df1 = df.sum(axis=1)
-        max_sum = sum_df1.idxmax()
-        hits = numpy.where(df.loc[max_sum] > 0)[0]
-        hit_index = list(df.index[hits])
-        block = df.loc[hit_index, hit_index]
-        block_sum = block.sum(axis=1)
-        core_block = list(block_sum.index[numpy.where(block_sum >= numpy.median(block_sum))[0]])
-        remainder = sorted(set(df.index) - set(core_block))
-
-        frequency_clusters.append(core_block)
-        if len(remainder) == 0:
-            return frequency_clusters
-        if len(core_block) == 1:
-            return frequency_clusters
-        df = df.loc[remainder, remainder]
-
-    if return_all:
-        frequency_clusters.append(remainder)
-    return frequency_clusters
-
-
-def remix(df, frequency_clusters):
-    final_clusters = []
-    for cluster in frequency_clusters:
-        slice_df = df.loc[cluster,:]
-        sum_slice = slice_df.sum(axis=0)
-        cut = min(0.8, numpy.percentile(sum_slice.loc[cluster] / float(len(cluster)), 90))
-        min_genes = max(4, cut * len(cluster))
-        keepers = list(slice_df.columns[numpy.where(sum_slice >= min_genes)[0]])
-        keepers = sorted(set(keepers) | set(cluster))
-        final_clusters.append(keepers)
-        final_clusters.sort(key=lambda s: -len(s))
-    return final_clusters
+    return normDf
 
 
 def get_coexpression_modules(mechanistic_output):
-    coexpression_modules = {}
-    for i in sorted(mechanistic_output.keys()):
+    coexpressionModules = {}
+    for i in mechanistic_output.keys():
         genes = list(set(numpy.hstack([mechanistic_output[i][key][1]
-                                       for key in sorted(mechanistic_output[i].keys())])))
-        coexpression_modules[i] = genes
-    return coexpression_modules
+                                       for key in mechanistic_output[i].keys()])))
+        coexpressionModules[i] = genes
+    return coexpressionModules
 
 
 """

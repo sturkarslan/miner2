@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import logging
 
-from miner2 import preprocess, util, mechanistic_inference, GIT_SHA
+from miner2 import preprocess, util, mechanistic_inference, GIT_SHA, subtypes
 from miner2 import __version__ as MINER_VERSION
 from miner2 import miner
 
@@ -133,6 +133,18 @@ if __name__ == '__main__':
     # write annotated coexpression modules to .json file
     with open(os.path.join(args.outdir, "coexpressionModules_annotated.json"), 'w') as outfile:
         json.dump(annotated_coexpression_modules, outfile)
+
+
+
+    # Get eigengenes for all modules
+    eigengenes = subtypes.get_eigengenes(regulon_modules, exp_data, regulon_dict=None,
+                                         saveFolder=None)
+    eigen_scale = np.percentile(exp_data, 95) / np.percentile(eigengenes, 95)
+    eigengenes = eigen_scale * eigengenes
+    eigengenes.index = np.array(eigengenes.index).astype(str)
+
+    # write eigengenes to .csv
+    eigengenes.to_csv(os.path.join(args.outdir, "eigengenes.csv"))
 
     t2 = time.time()
     logging.info("Completed mechanistic inference in {:.2f} minutes".format((t2 - t1) / 60.))
