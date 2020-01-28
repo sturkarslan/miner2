@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import logging
+from pkg_resources import Requirement, resource_filename
 
 from miner2 import coexpression, preprocess, mechanistic_inference as mechinf, miner
 from miner2 import GIT_SHA
@@ -21,6 +22,42 @@ MIN_REGULON_GENES = 5
 DESCRIPTION = """miner-causalinference - MINER causal inference.
 MINER Version %s (Git SHA %s)""" % (str(MINER_VERSION).replace('miner2 ', ''),
                                     GIT_SHA.replace('$Id: ', '').replace(' $', ''))
+
+
+def expand_regulons(exp_data, regulon_modules, regulon_df, eigengenes,
+                    overexpressed_members_matrix, args):
+    """TODO: This can't be done without the network mapping/causal inference step !!!!
+    Move it there, because we need that overexpressed_members_matrix
+    note that in that case, tfbsdb_path must be defined
+    """
+    t1 = time.time()
+    tfbsdb_path = resource_filename(Requirement.parse("isb_miner2"),
+                                    'miner2/data/{}'.format("tfbsdb_tf_to_genes.pkl"))
+    expandedRegulons = miner.parallelRegulonExpansion(eigengenes, regulon_modules, regulon_df,
+                                                      exp_data, tfbsdb_path,
+                                                      overexpressed_members_matrix,
+                                                      corrThreshold=0.25, auc_threshold=0.70,
+                                                      numCores=5)
+
+    regulonIDtoRegulator = miner.regulonIdToRegulator(regulon_df)
+    expandedRegulonDf = miner.regulonDictToDf(expandedRegulons, regulonIDtoRegulator)
+    t2 = time.time()
+    print("Completed regulon expansion in {:.2f} minutes".format((t2-t1)/float(60.)))
+
+    expandedEigengenes = miner.getEigengenes(expandedRegulons, exp_data,
+                                             regulon_dict=None, saveFolder=None)
+    eigenScale = np.percentile(expressionData, 95) / np.percentile(expandedEigengenes, 95)
+    expandedEigengenes = eigenScale * expandedEigengenes
+    expandedEigengenes.index = np.array(expandedEigengenes.index).astype(str)
+
+    expandedEigengenes.to_csv(os.path.join(args.outdir, "expanded_eigengenes.csv"))
+    expandedRegulonDf.to_csv(os.path.join(args.outdir, "expanded_regulonDf.csv"))
+    miner.write_json(expandedRegulons,os.path.join(args.outdir, "expanded_regulons.json"))
+    print("Expanded network to {:d} regulons, {:d} regulators, and {:d} co-regulated genes".format(
+        len(expandedRegulonDf.Regulon_ID.unique()),
+        len(expandedRegulonDf.Regulator.unique()),
+        len(expandedRegulonDf.Gene.unique())))
+
 
 if __name__ == '__main__':
     LOG_FORMAT = '%(asctime)s %(message)s'
@@ -34,9 +71,9 @@ if __name__ == '__main__':
     parser.add_argument('coreg', help="coregulationModules.json file from miner-mechinf")
     parser.add_argument('coher', help="coherentMembers.csv file from miner-bcmembers")
 
-    parser.add_argument('cmfile', help="common mutations file")
-    parser.add_argument('tlfile', help="translocations file")
-    parser.add_argument('cgfile', help="cytogenetics file")
+    parser.add_argument('--common_mutations', help="common mutations file")
+    parser.add_argument('--translocations', help="translocations file")
+    parser.add_argument('--cytogenetics', help="cytogenetics file")
     parser.add_argument('outdir', help="output directory")
 
     args = parser.parse_args()
@@ -51,17 +88,12 @@ if __name__ == '__main__':
     exp_data, conv_table = preprocess.main(args.expfile, args.mapfile)
     with open(args.coreg) as infile:
         coregulation_modules = json.load(infile)
-    #regulon_df = pd.read_csv(args.regulondf, index_col=0, header=0)
+
     regulons = mechinf.get_regulons(coregulation_modules,
                                     min_number_genes=MIN_REGULON_GENES,
                                     freq_threshold=0.333)
     regulon_modules, regulon_df = mechinf.get_regulon_dictionary(regulons)
     coherent_samples_matrix = pd.read_csv(args.coher, index_col=0, header=0)
-
-    common_mutations = pd.read_csv(args.cmfile, index_col=0, header=0)
-    translocations = pd.read_csv(args.tlfile, index_col=0, header=0)
-    cytogenetics = pd.read_csv(args.cgfile, index_col=0, header=0)
-
 
     eigengenes = miner.getEigengenes(regulon_modules, exp_data,
                                      regulon_dict=None, saveFolder=None)
@@ -71,32 +103,39 @@ if __name__ == '__main__':
 
     # Perform causal analysis for each mutation matrix
     result_dir = os.path.join(args.outdir, "causal_analysis")
-    miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
-                                expression_matrix=exp_data,
-                                reference_matrix=eigengenes,
-                                mutation_matrix=common_mutations,
-                                resultsDirectory=result_dir,
-                                minRegulons=1,
-                                significance_threshold=0.05,
-                                causalFolder="causal_results_common_mutations")
 
-    miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
-                                expression_matrix=exp_data,
-                                reference_matrix=eigengenes,
-                                mutation_matrix=translocations,
-                                resultsDirectory=result_dir,
-                                minRegulons=1,
-                                significance_threshold=0.05,
-                                causalFolder="causal_results_translocations")
+    if args.common_mutations is not None:
+        common_mutations = pd.read_csv(args.common_mutations, index_col=0, header=0)
+        miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
+                                    expression_matrix=exp_data,
+                                    reference_matrix=eigengenes,
+                                    mutation_matrix=common_mutations,
+                                    resultsDirectory=result_dir,
+                                    minRegulons=1,
+                                    significance_threshold=0.05,
+                                    causalFolder="causal_results_common_mutations")
 
-    miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
-                                expression_matrix=exp_data,
-                                reference_matrix=eigengenes,
-                                mutation_matrix=cytogenetics,
-                                resultsDirectory=result_dir,
-                                minRegulons=1,
-                                significance_threshold=0.05,
-                                causalFolder="causal_results_cytogenetics")
+    if args.translocations is not None:
+        translocations = pd.read_csv(args.translocations, index_col=0, header=0)
+        miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
+                                    expression_matrix=exp_data,
+                                    reference_matrix=eigengenes,
+                                    mutation_matrix=translocations,
+                                    resultsDirectory=result_dir,
+                                    minRegulons=1,
+                                    significance_threshold=0.05,
+                                    causalFolder="causal_results_translocations")
+
+    if args.cytogenetics is not None:
+        cytogenetics = pd.read_csv(args.cytogenetics, index_col=0, header=0)
+        miner.causalNetworkAnalysis(regulon_matrix=regulon_df,
+                                    expression_matrix=exp_data,
+                                    reference_matrix=eigengenes,
+                                    mutation_matrix=cytogenetics,
+                                    resultsDirectory=result_dir,
+                                    minRegulons=1,
+                                    significance_threshold=0.05,
+                                    causalFolder="causal_results_cytogenetics")
 
     # compile all causal results
     causal_results = miner.readCausalFiles(result_dir)

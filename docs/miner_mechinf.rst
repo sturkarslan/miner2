@@ -11,7 +11,7 @@ at the command prompt:
 ::
 
     usage: miner2-mechinf [-h] [-mc MINCORR]
-                          expfile mapfile coexprdict datadir outdir
+                          expfile mapfile coexprdict outdir
 
     miner2-mechinf - MINER compute mechanistic inference
 
@@ -19,7 +19,6 @@ at the command prompt:
       expfile               input matrix
       mapfile               identifier mapping file
       coexprdict            coexpressionDictionary.json file from miner-coexpr
-      datadir               data directory
       outdir                output directory
 
     optional arguments:
@@ -36,7 +35,6 @@ Parameters in detail
   * **expfile:** The gene expression file a matrix in csv format.
   * **mapfile:** The gene identifier map file.
   * **coexprdict:** The path coexpressionDictionary.json file from the miner-coexpr tool
-  * **datadir:** The path to the data directory
   * **outdir:** The path to the output directory
 
 In addition, you can specify the following optional arguments:

@@ -11,6 +11,7 @@ import time
 import matplotlib
 matplotlib.use('Agg')
 import logging
+from pkg_resources import Requirement, resource_filename
 
 from miner2 import preprocess, util, mechanistic_inference, GIT_SHA, subtypes
 from miner2 import __version__ as MINER_VERSION
@@ -34,7 +35,6 @@ if __name__ == '__main__':
     parser.add_argument('expfile', help="input matrix")
     parser.add_argument('mapfile', help="identifier mapping file")
     parser.add_argument('coexprdict', help="coexpressionDictionary.json file from miner-coexpr")
-    parser.add_argument('datadir', help="data directory")
     parser.add_argument('outdir', help="output directory")
     parser.add_argument('-mc', '--mincorr', type=float, default=0.2,
                         help="minimum correlation")
@@ -47,8 +47,6 @@ if __name__ == '__main__':
         sys.exit("identifier mapping file not found")
     if not os.path.exists(args.coexprdict):
         sys.exit("revised clusters file not found")
-    if not os.path.exists(args.datadir):
-        sys.exit("data directory not found")
 
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
@@ -63,11 +61,14 @@ if __name__ == '__main__':
 
     # get first principal component axes of clusters
     t1 = time.time()
-    database_path = os.path.join(args.datadir, "tfbsdb_tf_to_genes.pkl")
+    database_path = resource_filename(Requirement.parse("isb_miner2"),
+                                      'miner2/data/{}'.format("tfbsdb_tf_to_genes.pkl"))
+
     axes = mechanistic_inference.get_principal_df(revised_clusters, exp_data,
                                                   subkey=None, min_number_genes=1)
 
-    # analyze revised clusters for enrichment in relational database (default: transcription factor binding site database)
+    # analyze revised clusters for enrichment in relational database
+    # (default: transcription factor binding site database)
     mechanistic_output = mechanistic_inference.enrichment(axes, revised_clusters, exp_data,
                                                           correlation_threshold=args.mincorr,
                                                           num_cores=NUM_CORES,
