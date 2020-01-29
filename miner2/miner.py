@@ -3325,6 +3325,9 @@ def wiringDiagram(causal_results,regulonModules,coherent_samples_matrix,include_
     cytoscape_output = []
     for regulon in list(set(causal_results.index)):
 
+        # some of those regulons are not in regulonModules, handle that case
+        if not regulon in regulonModules:
+            continue
         genes = regulonModules[regulon]
 
         # I don't know exactly why, but these things happen
