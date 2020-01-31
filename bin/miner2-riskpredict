@@ -44,15 +44,9 @@ if __name__ == '__main__':
 
     exp_data, conv_table = preprocess.main(input_spec['exp'], input_spec['idmap'], do_preprocess_tpm=(not args.skip_tpm))
 
-    common_mutations = pd.read_csv(input_spec['common_mutations'], index_col=0, header=0)
-    translocations = pd.read_csv(input_spec['translocations'], index_col=0, header=0)
-    cytogenetics = pd.read_csv(input_spec['cytogenetics'], index_col=0, header=0)
-    cytogenetics = cytogenetics.loc[:,list(set(cytogenetics.columns)&set(exp_data.columns))]
-    common_patients_mutations_translocations = list(set(translocations.columns) & set(common_mutations.columns))
-    merged_mutations = pd.concat([common_mutations.loc[:,common_patients_mutations_translocations],
-                                  translocations.loc[:,common_patients_mutations_translocations]],
-                                 axis=0)
-
+    translocations = None
+    if 'translocations' in input_spec:
+        translocations = pd.read_csv(input_spec['translocations'], index_col=0, header=0)
 
 
     with open(input_spec['coexpression_dictionary']) as infile:
@@ -280,12 +274,17 @@ if __name__ == '__main__':
 
     # Generate boxplot data for transcriptional states
     survival_patients = list(guanSurvivalDfMMRF.index)
-    t414_patients = translocations.columns[
-        np.where(translocations.loc["RNASeq_WHSC1_Call",:]==1)[0]
-    ]
-    t1114_patients = translocations.columns[
-        np.where(translocations.loc["RNASeq_CCND1_Call",:]==1)[0]
-    ]
+
+    if translocations is not None:
+        t414_patients = translocations.columns[
+            np.where(translocations.loc["RNASeq_WHSC1_Call",:]==1)[0]
+        ]
+        t1114_patients = translocations.columns[
+            np.where(translocations.loc["RNASeq_CCND1_Call",:]==1)[0]
+        ]
+    else:
+        t414_patients = []
+        t1114_patients = []
 
     min_patients = 5
     ranks = []
@@ -361,27 +360,28 @@ if __name__ == '__main__':
     # Save figure
     plt.savefig(os.path.join(args.outdir, "boxplot_states_risk.pdf"), bbox_inches="tight")
 
-    # t(4;14) and t(11;14) subtypes by states
-    plt.figure(figsize=(12, 2))
+    if translocations is not None:
+        # t(4;14) and t(11;14) subtypes by states
+        plt.figure(figsize=(12, 2))
 
-    N = len(ranks)
-    ind = np.arange(N)    # the x locations for the groups
-    w = 0.6
-    p1 = plt.bar(ind, 100*ranked_t1114,width=w,color='#0A6ECC',edgecolor="white",alpha=1)
-    p2 = plt.bar(ind, 100*ranked_t414,
-                 bottom=100*ranked_t1114,width=w,color='#E53939',edgecolor="white",alpha=1)
+        N = len(ranks)
+        ind = np.arange(N)    # the x locations for the groups
+        w = 0.6
+        p1 = plt.bar(ind, 100*ranked_t1114,width=w,color='#0A6ECC',edgecolor="white",alpha=1)
+        p2 = plt.bar(ind, 100*ranked_t414,
+                     bottom=100*ranked_t1114,width=w,color='#E53939',edgecolor="white",alpha=1)
 
-    plt.xlim(-0.5,N-0.5)
-    plt.ylim(-5,110)
-    try:
-        plt.xticks(ticks=range(len(rank_order)),labels=list(rank_order))
-    except:
-        # solves compatibility issue with pyplot, as it does not work in Python2
-        pass
-    plt.legend((p1[0], p2[0]), ('t(11;14)', 't(4;14)'),loc="upper left")
+        plt.xlim(-0.5,N-0.5)
+        plt.ylim(-5,110)
+        try:
+            plt.xticks(ticks=range(len(rank_order)),labels=list(rank_order))
+        except:
+            # solves compatibility issue with pyplot, as it does not work in Python2
+            pass
+        plt.legend((p1[0], p2[0]), ('t(11;14)', 't(4;14)'),loc="upper left")
 
-    plt.savefig(os.path.join(args.outdir,"barplot_states_translocations.pdf"),
-                bbox_inches="tight")
+        plt.savefig(os.path.join(args.outdir,"barplot_states_translocations.pdf"),
+                    bbox_inches="tight")
 
 
 

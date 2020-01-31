@@ -21,8 +21,7 @@ at the command prompt:
 
   optional arguments:
     -h, --help       show this help message and exit
-    --method METHOD  predictor method (decisionTree or xgboost)   
-     usage: miner2-riskclassifier [-h] [--method METHOD] input outdir
+     usage: miner2-riskclassifier [-h] input outdir
 
 
 Parameters in detail
