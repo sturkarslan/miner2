@@ -74,6 +74,8 @@ if __name__ == '__main__':
     parser.add_argument('--common_mutations', help="common mutations file")
     parser.add_argument('--translocations', help="translocations file")
     parser.add_argument('--cytogenetics', help="cytogenetics file")
+    parser.add_argument('--skip_tpm', action="store_true",
+                        help="overexpression threshold")
     parser.add_argument('outdir', help="output directory")
 
     args = parser.parse_args()
@@ -85,7 +87,7 @@ if __name__ == '__main__':
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
 
-    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile)
+    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile, do_preprocess_tpm=(not args.skip_tpm))
     with open(args.coreg) as infile:
         coregulation_modules = json.load(infile)
 

@@ -26,6 +26,9 @@ if __name__ == '__main__':
     parser.add_argument('mapfile', help="identifier mapping file")
     parser.add_argument('regulons', help="regulons.json file from miner-mechinf")
     parser.add_argument('outdir', help="output directory")
+    parser.add_argument('--skip_tpm', action="store_true",
+                        help="overexpression threshold")
+
     args = parser.parse_args()
 
     if not os.path.exists(args.regulons):
@@ -37,7 +40,7 @@ if __name__ == '__main__':
     with open(os.path.join(args.outdir, 'run_info.txt'), 'w') as outfile:
         util.write_dependency_infos(outfile)
 
-    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile)
+    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile, do_preprocess_tpm=(not args.skip_tpm))
     bkgd = preprocess.background_df(exp_data)
 
     with open(args.regulons) as infile:

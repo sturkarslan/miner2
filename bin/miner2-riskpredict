@@ -27,7 +27,8 @@ if __name__ == '__main__':
                                      description=DESCRIPTION)
     parser.add_argument('input', help="input specification file")
     parser.add_argument('outdir', help="output directory")
-    parser.add_argument('--method', default="decisionTree", help="predictor method (decisionTree or xgboost)")
+    parser.add_argument('--skip_tpm', action="store_true",
+                        help="overexpression threshold")
 
     args = parser.parse_args()
 
@@ -41,7 +42,7 @@ if __name__ == '__main__':
         input_spec = json.load(infile)
 
 
-    exp_data, conv_table = preprocess.main(input_spec['exp'], input_spec['idmap'])
+    exp_data, conv_table = preprocess.main(input_spec['exp'], input_spec['idmap'], do_preprocess_tpm=(not args.skip_tpm))
 
     common_mutations = pd.read_csv(input_spec['common_mutations'], index_col=0, header=0)
     translocations = pd.read_csv(input_spec['translocations'], index_col=0, header=0)
