@@ -38,6 +38,8 @@ if __name__ == '__main__':
     parser.add_argument('outdir', help="output directory")
     parser.add_argument('-mc', '--mincorr', type=float, default=0.2,
                         help="minimum correlation")
+    parser.add_argument('--skip_tpm', action="store_true",
+                        help="overexpression threshold")
 
     args = parser.parse_args()
 
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     with open(os.path.join(args.outdir, 'run_info.txt'), 'w') as outfile:
         util.write_dependency_infos(outfile)
 
-    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile)
+    exp_data, conv_table = preprocess.main(args.expfile, args.mapfile, do_preprocess_tpm=(not args.skip_tpm))
 
     with open(args.coexprdict) as infile:
         revised_clusters = json.load(infile)

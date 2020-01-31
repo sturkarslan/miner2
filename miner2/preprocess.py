@@ -6,7 +6,7 @@ from scipy.stats import rankdata
 
 import logging
 
-def correct_batch_effects(df):
+def correct_batch_effects(df, do_preprocess_tpm):
     zscored_expression = zscore(df)
     means = []
     stds = []
@@ -15,7 +15,7 @@ def correct_batch_effects(df):
         std = numpy.std(zscored_expression.iloc[:,i])
         means.append(mean)
         stds.append(std)
-    if numpy.std(means) >= 0.15:
+    if do_preprocess_tpm and numpy.std(means) >= 0.15:
         zscored_expression = preprocess_tpm(df)
     return zscored_expression
 
@@ -236,7 +236,7 @@ def entropy(vector):
             ent -= float(i) * numpy.log(i)
     return ent
 
-def main(input_path,conversion_table_path=None):
+def main(input_path,conversion_table_path=None, do_preprocess_tpm=True):
 
     # first detect if it's a dataframe or dir or a file to parse data differently
     if isinstance(input, pandas.DataFrame):
@@ -255,7 +255,7 @@ def main(input_path,conversion_table_path=None):
     # data transformations
     logging.info("expression data transformation")
     raw_expression_zero_filtered = remove_null_rows(raw_expression)
-    zscored_expression = correct_batch_effects(raw_expression_zero_filtered)
+    zscored_expression = correct_batch_effects(raw_expression_zero_filtered, do_preprocess_tpm)
 
     ("gene ID conversion")
     expression_data, conversion_table = identifier_conversion(zscored_expression,conversion_table_path)

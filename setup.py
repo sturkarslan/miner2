@@ -12,7 +12,7 @@ INSTALL_REQUIRES = ['numpy', 'scipy', 'pandas', 'sklearn', 'lifelines',
                     'pydot', 'graphviz']
 setuptools.setup(
     name="isb_miner2",
-    version="0.1.8",
+    version="0.1.9",
     author="Adrian Lopez Garcia de Lomana",
     author_email="alomana@systemsbiology.org",
     description="A newer version of MINER.",
