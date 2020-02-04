@@ -42,8 +42,6 @@ An example input file
   {
     "exp": "MATTDATA/expression/IA12Zscore.csv",
     "idmap": "MATTDATA/identifier_mappings.txt",
-    "common_mutations": "MATTDATA/mutations/commonMutations.csv",
-    "cytogenetics": "MATTDATA/mutations/cytogenetics.csv",
     "translocations": "MATTDATA/mutations/translocationsIA12.csv",
     "coexpression_dictionary": "MATTRESULT/coexpressionDictionary.json",
     "coexpression_modules": "MATTRESULT/coexpressionModules.json",

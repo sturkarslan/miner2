@@ -9,6 +9,9 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import time
 
+import traceback as tb
+import logging
+
 
 """
 Functions used for inferring sample subtypes
@@ -127,7 +130,8 @@ def plot_similarity(similarityMatrix, orderedSamples, vmin=0, vmax=0.5,
     try:
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     except:
-        pass
+        tb.print_exc()  # don't silence exceptions
+
     ax.imshow(similarityMatrix.loc[orderedSamples,orderedSamples],cmap='viridis',vmin=vmin,vmax=vmax)
     ax.grid(False)
     plt.title(title,FontSize=fontsize+2)
@@ -139,6 +143,7 @@ def plot_similarity(similarityMatrix, orderedSamples, vmin=0, vmax=0.5,
 
 
 def centroid_expansion(classes, sampleMatrix, f1Threshold=0.3, returnCentroids=None):
+    print('centroid_expansion')
     centroids = []
     for i in range(len(classes)):
         clusterComponents = sampleMatrix.loc[:,classes[i]]
@@ -203,7 +208,7 @@ def __f1(vector1, vector2):
 
 
 def map_expression_to_network(centroidMatrix, membershipMatrix, threshold=0.05):
-
+    logging.info('map_expression_to_network()')
     miss = []
     centroidClusters = [[] for i in range(centroidMatrix.shape[1])]
     for smpl in membershipMatrix.columns:
@@ -239,6 +244,7 @@ def order_membership(centroidMatrix, membershipMatrix, mappedClusters, ylabel=""
     try:
         ordered_matrix = membershipMatrix.loc[orderedClusters, numpy.hstack(mappedClusters)]
     except:
+        tb.print_exc()  # don't silence exceptions
         ordered_matrix = membershipMatrix.loc[numpy.array(orderedClusters).astype(int),
                                               numpy.hstack(mappedClusters)]
 
@@ -248,7 +254,8 @@ def order_membership(centroidMatrix, membershipMatrix, mappedClusters, ylabel=""
         try:
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         except:
-            pass
+            tb.print_exc()  # don't silence exceptions
+
         ax.imshow(ordered_matrix,cmap='viridis',aspect="auto")
         ax.grid(False)
 
@@ -273,7 +280,8 @@ def plot_differential_matrix(overExpressedMembersMatrix, underExpressedMembersMa
         try:
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         except:
-            pass
+            tb.print_exc()  # don't silence exceptions
+
         ax.imshow(orderedDM,cmap=cmap,vmin=-1,vmax=1,aspect=aspect)
         ax.grid(False)
         if saveFile is not None:
@@ -287,7 +295,7 @@ def plot_differential_matrix(overExpressedMembersMatrix, underExpressedMembersMa
 
 def mosaic(dfr, clusterList, minClusterSize_x=4, minClusterSize_y=5, allow_singletons=True,
            max_groups=50, saveFile=None, random_state=12):
-
+    print('mosaic()')
     lowResolutionPrograms = [[] for i in range(len(clusterList))]
     sorting_hat = []
     for i in range(len(clusterList)):
@@ -417,7 +425,7 @@ def mosaic(dfr, clusterList, minClusterSize_x=4, minClusterSize_y=5, allow_singl
 
         return y_clusters, micro_states
     except:
-        pass
+        tb.print_exc()  # don't silence exceptions
 
     return y_clusters, x_clusters
 
@@ -666,7 +674,7 @@ def infer_subtypes(referenceMatrix, primaryMatrix, secondaryMatrix, primaryDicti
 
     t1 = time.time()
 
-    print('Beginning subtype inference')
+    logging.info('Beginning subtype inference')
     if restricted_index is not None:
         referenceMatrix = referenceMatrix.loc[restricted_index,:]
         primaryMatrix = primaryMatrix.loc[restricted_index,:]
@@ -676,10 +684,11 @@ def infer_subtypes(referenceMatrix, primaryMatrix, secondaryMatrix, primaryDicti
     similarityClusters = f1_decomposition(primaryDictionary,thresholdSFM=0.1)
     similarityClusters = [list(set(cluster)&set(referenceMatrix.columns)) for cluster in similarityClusters]
     initialClasses = [i for i in similarityClusters if len(i)>4]
-    if len(initialClasses)==0:
-        print('No subtypes were detected')
+    if len(initialClasses) == 0:
+        logging.info('No subtypes were detected')
 
     # expand initial subtype clusters
+    logginh.info('expand initial subtype clusters')
     centroidClusters, centroidMatrix = centroid_expansion(initialClasses,primaryMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
 
     subcentroidClusters = []
@@ -787,6 +796,6 @@ def infer_subtypes(referenceMatrix, primaryMatrix, secondaryMatrix, primaryDicti
         return subcentroidClusters2, subcentroidClusters, centroidClusters
 
     t2 = time.time()
-    print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
+    logging.info("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
 
     return subcentroidClusters, centroidClusters

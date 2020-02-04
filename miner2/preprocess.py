@@ -5,6 +5,7 @@ from scipy import stats
 from scipy.stats import rankdata
 
 import logging
+import traceback as tb
 
 def correct_batch_effects(df, do_preprocess_tpm):
     zscored_expression = zscore(df)
@@ -58,6 +59,7 @@ def identifier_conversion(exp_data, conv_table_path=None):
     try:
         convertedData = exp_data.loc[mappedGenes,:]
     except:
+        tb.print_exc()  # don't silence exceptions !!
         convertedData = exp_data.loc[numpy.array(mappedGenes).astype(int),:]
 
     conversionTable = subset.loc[mappedGenes,:]
@@ -465,6 +467,7 @@ def zscore(expressionData):
     try:
         transform = ((expressionData.T - means)/stds).T
     except:
+        tb.print_exc()  # don't silence exceptions !!
         passIndex = numpy.where(stds>0)[0]
         transform = ((expressionData.iloc[passIndex,:].T - means[passIndex])/stds[passIndex]).T
     return transform

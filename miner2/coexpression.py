@@ -2,6 +2,7 @@ import datetime,numpy,pandas,time,sys,itertools
 import sklearn,sklearn.decomposition
 import multiprocessing, multiprocessing.pool
 from collections import Counter
+import traceback as tb
 
 # Some default constants if the user does not specify any
 # default number of iterations for algorithms with iterations
@@ -69,6 +70,7 @@ def cluster(expressionData, min_number_genes=6, min_number_overexp_samples=4,
         try:
             stackGenes = numpy.hstack(genesMapped)
         except:
+            tb.print_exc()  # don't silence exceptions !!
             stackGenes = []
         residualGenes = list(set(df.index)-set(stackGenes))
         df = df.loc[residualGenes,:]

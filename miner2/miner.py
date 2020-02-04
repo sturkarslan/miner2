@@ -8,13 +8,17 @@ Created on Wed Feb 20 13:20:40 2019
 import numpy as np
 import pandas as pd
 from scipy import stats
-import os
+import os, sys
 from sklearn.decomposition import PCA
 #import multiprocessing, multiprocessing.pool
 import matplotlib.pyplot as plt
 import time
 from collections import Counter
 #import seaborn as sns
+import traceback as tb
+import logging
+
+LOGGER = logging.getLogger()
 
 # =============================================================================
 # Functions used for reading and writing files
@@ -180,6 +184,7 @@ def identifierConversion(expressionData,conversionTable=os.path.join("..","data"
     try:
         convertedData = expressionData.loc[mappedGenes,:]
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         convertedData = expressionData.loc[np.array(mappedGenes).astype(int),:]
     
     conversionTable = subset.loc[mappedGenes,:]
@@ -441,6 +446,7 @@ def zscore(expressionData):
     try:
         transform = ((expressionData.T - means)/stds).T
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         passIndex = np.where(stds>0)[0]
         transform = ((expressionData.iloc[passIndex,:].T - means[passIndex])/stds[passIndex]).T
     print("completed z-transformation.")
@@ -786,6 +792,7 @@ def cluster(expressionData,minNumberGenes = 6,minNumberOverExpSamples=4,maxSampl
         try:
             stackGenes = np.hstack(genesMapped)
         except:
+            tb.print_exc()  # WW: don't just silence exceptions !!
             stackGenes = []
         residualGenes = list(set(df.index)-set(stackGenes))
         df = df.loc[residualGenes,:]
@@ -934,10 +941,12 @@ def membershipToIncidence(membershipDictionary,expressionData):
         orderIndex = np.array(incidence.index).astype(int)
         orderIndex = np.sort(orderIndex)
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         orderIndex = incidence.index
     try:
         incidence = incidence.loc[orderIndex,:]
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         incidence = incidence.loc[orderIndex.astype(str),:]
         
     return incidence
@@ -1477,9 +1486,9 @@ def f1Decomposition(sampleMembers=None,thresholdSFM=0.333,sampleFrequencyMatrix=
         if members==predictedMembers:
             similarityClusters.append(list(predictedMembers))
             if len(predictedNonMembers)==0:
-                break    
+                break
             similarityMatrix = similarityMatrix.loc[predictedNonMembers,predictedNonMembers]
-            probeSample = np.argmax(similarityMatrix.sum(axis=1))
+            probeSample = similarityMatrix.sum(axis=1).idxmax()
             members = set(similarityMatrix.index[np.where(similarityMatrix[probeSample]==1)[0]])
             remainingMembers = predictedNonMembers
             nonMembers = remainingMembers-members
@@ -1497,7 +1506,7 @@ def f1Decomposition(sampleMembers=None,thresholdSFM=0.333,sampleFrequencyMatrix=
             if len(predictedNonMembers)==0:
                 break
             similarityMatrix = similarityMatrix.loc[predictedNonMembers,predictedNonMembers]
-            probeSample = np.argmax(similarityMatrix.sum(axis=1))
+            probeSample = similarityMatrix.sum(axis=1).idxmax()
             members = set(similarityMatrix.index[np.where(similarityMatrix[probeSample]==1)[0]])
             remainingMembers = predictedNonMembers
             nonMembers = remainingMembers-members
@@ -1519,7 +1528,8 @@ def plotSimilarity(similarityMatrix,orderedSamples,vmin=0,vmax=0.5,title="Simila
         from matplotlib.ticker import MaxNLocator
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     except:
-        pass    
+        # WW: don't just silently ignore Exceptions !!!
+        tb.print_exc()
     ax.imshow(similarityMatrix.loc[orderedSamples,orderedSamples],cmap='viridis',vmin=vmin,vmax=vmax)
     ax.grid(False)
     plt.title(title,FontSize=fontsize+2)
@@ -1544,40 +1554,6 @@ def f1(vector1,vector2):
     
     return F1
 
-#def centroidExpansion(classes,sampleMatrix,f1Threshold = 0.3,returnCentroids=None):
-#    centroids = []
-#    for i in range(len(classes)):
-#        clusterComponents = sampleMatrix.loc[:,classes[i]]
-#        class1 = np.mean(clusterComponents,axis=1)
-#        hits = np.where(class1>0.6)[0]
-#        centroid = pd.DataFrame(sampleMatrix.iloc[:,0])
-#        centroid.columns = [i]
-#        centroid[i] = 0
-#        centroid.iloc[hits,0] = 1
-#        centroids.append(centroid)
-#
-#    miss = []
-#    centroidClusters = [[] for i in range(len(centroids))]
-#    for smpl in sampleMatrix.columns:
-#        probeVector = np.array(sampleMatrix[smpl])
-#        scores = []
-#        for ix in range(len(centroids)):
-#            tmp = f1(np.array(probeVector),centroids[ix])
-#            scores.append(tmp)
-#        scores = np.array(scores)
-#        match = np.argmax(scores)
-#        if scores[match] < f1Threshold:
-#            miss.append(smpl)
-#        elif scores[match] >= f1Threshold:
-#            centroidClusters[match].append(smpl)
-#
-#    centroidClusters.append(miss)  
-#
-#    if returnCentroids is not None:
-#        centroidMatrix = pd.DataFrame(pd.concat(centroids,axis=1))
-#        return centroidClusters, centroidMatrix
-#        
-#    return centroidClusters
 
 def centroidExpansion(classes,sampleMatrix,f1Threshold = 0.3,returnCentroids=None):
     centroids = []
@@ -1626,7 +1602,7 @@ def getCentroids(classes,sampleMatrix):
     return pd.concat(centroids,axis=1)
 
 def mapExpressionToNetwork(centroidMatrix,membershipMatrix,threshold = 0.05):
-    
+    LOGGER.info('mapExpressionToNetwork')
     miss = []
     centroidClusters = [[] for i in range(centroidMatrix.shape[1])]
     for smpl in membershipMatrix.columns:
@@ -1658,6 +1634,7 @@ def orderMembership(centroidMatrix,membershipMatrix,mappedClusters,ylabel="",res
     try:
         ordered_matrix = membershipMatrix.loc[orderedClusters,np.hstack(mappedClusters)]
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         ordered_matrix = membershipMatrix.loc[np.array(orderedClusters).astype(int),np.hstack(mappedClusters)]
     
     if showplot is False:
@@ -1670,7 +1647,9 @@ def orderMembership(centroidMatrix,membershipMatrix,mappedClusters,ylabel="",res
             from matplotlib.ticker import MaxNLocator
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         except:
-            pass    
+            # WW: don't just silently ignore Exceptions !!!
+            tb.print_exc()
+
         ax.imshow(ordered_matrix,cmap='viridis',aspect="auto")
         ax.grid(False)
             
@@ -1696,7 +1675,8 @@ def plotDifferentialMatrix(overExpressedMembersMatrix,underExpressedMembersMatri
             from matplotlib.ticker import MaxNLocator
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         except:
-            pass
+            # WW: don't just silently ignore Exceptions !!!
+            tb.print_exc()
         
         ax.imshow(orderedDM,cmap=cmap,vmin=-1,vmax=1,aspect=aspect)
         ax.grid(False)
@@ -1718,7 +1698,7 @@ def kmeans(df,numClusters,random_state=None):
     elif random_state is None:    
         # Number of clusters
         kmeans = KMeans(n_clusters=numClusters)
-    
+
     # Fitting the input data
     kmeans = kmeans.fit(df)
     # Getting the cluster labels
@@ -1733,8 +1713,7 @@ def kmeans(df,numClusters,random_state=None):
 
     return clusters, labels, centroids
 
-def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singletons=True,max_groups=50,saveFile=None,random_state=12):    
-    
+def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singletons=True,max_groups=50,saveFile=None,random_state=12):
     import sklearn
 
     lowResolutionPrograms = [[] for i in range(len(clusterList))]
@@ -1746,14 +1725,13 @@ def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singleton
         subset = dfr.loc[:,patients]
         density = subset.sum(axis=1)/float(subset.shape[1])
         sorting_hat.append(np.array(density))
-    
-    enrichment_matrix = np.vstack(sorting_hat).T    
+
+    enrichment_matrix = np.vstack(sorting_hat).T
     choice = np.argmax(enrichment_matrix,axis=1)
     for i in range(dfr.shape[0]):
         lowResolutionPrograms[choice[i]].append(dfr.index[i])
-    
+
     #Cluster modules into transcriptional programs
-    
     y_clusters = []
     for program in range(len(lowResolutionPrograms)):
         regs = lowResolutionPrograms[program]
@@ -1777,42 +1755,40 @@ def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singleton
                     kmSS = 0
                     sil_scores.append(kmSS)
                     continue
-                
+
             clusters_y.sort(key=lambda s: -len(s))
-    
+
             kmSS=sklearn.metrics.silhouette_score(df,labels_y,metric='euclidean')
             sil_scores.append(kmSS)
-    
+
         if len(sil_scores) > 0:
             top_hit = min(np.where(np.array(sil_scores)>=0.95*max(sil_scores))[0]+2)
             clusters_y, labels_y, centroids_y = kmeans(df,numClusters=top_hit,random_state=random_state)
             clusters_y.sort(key=lambda s: -len(s))
             y_clusters.append(list(clusters_y))
-    
+
         elif len(sil_scores) == 0:
             y_clusters.append(regs)
-        
+
     order_y = np.hstack([np.hstack(y_clusters[i]) for i in range(len(y_clusters))])
-    
+
     #Cluster patients into subtype states
-    
     x_clusters = []
     for c in range(len(clusterList)):
         patients = clusterList[c]
         if len(patients)<= minClusterSize_x:
             x_clusters.append(patients)
             continue
-        
+
         if allow_singletons is not True:
             if len(patients)<= 2*minClusterSize_x:
                 x_clusters.append(patients)
-                continue            
-        
+                continue
+
         if len(patients) == 0:
             continue
         df = dfr.loc[order_y,patients].T
         sil_scores = []
-        
         max_clusters_x = min(max_groups,int(len(patients)/3.))
         for numClusters_x in range(2,max_clusters_x):
             clusters_x, labels_x, centroids_x = kmeans(df,numClusters=numClusters_x,random_state=random_state)
@@ -1829,12 +1805,12 @@ def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singleton
                     kmSS = 0
                     sil_scores.append(kmSS)
                     continue
-                
+
             clusters_x.sort(key=lambda s: -len(s))
-    
+
             kmSS=sklearn.metrics.silhouette_score(df,labels_x,metric='euclidean')
             sil_scores.append(kmSS)
-    
+
         if len(sil_scores) > 0:
             top_hit = min(np.where(np.array(sil_scores)>=0.999*max(sil_scores))[0]+2)
             clusters_x, labels_x, centroids_x = kmeans(df,numClusters=top_hit,random_state=random_state)
@@ -1851,8 +1827,7 @@ def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singleton
                         micro_states.append(x_clusters[i][j])
                 elif type(x_clusters[i][0]) is str:
                     micro_states.append(x_clusters[i])
-        
-                               
+
         order_x = np.hstack(micro_states)
         fig = plt.figure(figsize=(7,7))
         ax = fig.gca()
@@ -1863,94 +1838,14 @@ def mosaic(dfr,clusterList,minClusterSize_x=4,minClusterSize_y=5,allow_singleton
         ax.set_xlabel("Samples",FontSize=14)
         if saveFile is not None:
             plt.savefig(saveFile,bbox_inches="tight")
-            
+
         return y_clusters, micro_states
-    
+
     except:
-        pass
-        
+        # WW: don't just silently ignore Exceptions !!!
+        tb.print_exc()
+
     return y_clusters, x_clusters
-    
-#def mosaic(dfr,clusterList,minClusterSize_x=5,minClusterSize_y=5,allow_singletons=True,max_groups=50,saveFile=None,random_state=12):    
-#    
-#    import sklearn
-#
-#    lowResolutionPrograms = [[] for i in range(len(clusterList))]
-#    sorting_hat = []
-#    for i in range(len(clusterList)):
-#        patients = clusterList[i]
-#        if len(patients) < minClusterSize_x:
-#            continue
-#        subset = dfr.loc[:,patients]
-#        density = subset.sum(axis=1)/float(subset.shape[1])
-#        sorting_hat.append(np.array(density))
-#    
-#    enrichment_matrix = np.vstack(sorting_hat).T    
-#    choice = np.argmax(enrichment_matrix,axis=1)
-#    for i in range(dfr.shape[0]):
-#        lowResolutionPrograms[choice[i]].append(dfr.index[i])
-#    
-#    #Cluster modules into transcriptional programs
-#    
-#    y_clusters = []
-#    for program in range(len(lowResolutionPrograms)):
-#        regs = lowResolutionPrograms[program]
-#        if len(regs) == 0:
-#            continue
-#        df = dfr.loc[regs,:]
-#        sil_scores = []
-#        max_clusters_y = min(max_groups,int(len(regs)/3.))
-#        for numClusters_y in range(2,max_clusters_y):
-#            clusters_y, labels_y, centroids_y = kmeans(df,numClusters=numClusters_y,random_state=random_state)
-#            lens_y = [len(c) for c in clusters_y]
-#            if min(lens_y) < minClusterSize_y:
-#                if allow_singletons is True:
-#                    if min(lens_y) != 1:
-#                        kmSS = 0
-#                        sil_scores.append(kmSS)
-#                        continue
-#                    elif min(lens_y) == 1:
-#                        pass
-#                elif allow_singletons is not True:
-#                    kmSS = 0
-#                    sil_scores.append(kmSS)
-#                    continue
-#                
-#            clusters_y.sort(key=lambda s: -len(s))
-#    
-#            kmSS=sklearn.metrics.silhouette_score(df,labels_y,metric='euclidean')
-#            sil_scores.append(kmSS)
-#    
-#        if len(sil_scores) > 0:
-#            top_hit = min(np.where(np.array(sil_scores)>=0.95*max(sil_scores))[0]+2)
-#            clusters_y, labels_y, centroids_y = kmeans(df,numClusters=top_hit,random_state=random_state)
-#            clusters_y.sort(key=lambda s: -len(s))
-#            y_clusters.append(list(clusters_y))
-#    
-#        elif len(sil_scores) == 0:
-#            y_clusters.append(regs)
-#        
-#    order_y = np.hstack([np.hstack(y_clusters[i]) for i in range(len(y_clusters))])
-#    
-#    try:
-#                               
-#        order_x = np.hstack(clusterList)
-#        fig = plt.figure(figsize=(7,7))
-#        ax = fig.gca()
-#        ax.imshow(dfr.loc[order_y,order_x],cmap="bwr",vmin=-1,vmax=1)
-#        ax.set_aspect(dfr.shape[1]/float(dfr.shape[0]))
-#        ax.grid(False)
-#        ax.set_ylabel("Modules",FontSize=14)
-#        ax.set_xlabel("Samples",FontSize=14)
-#        if saveFile is not None:
-#            plt.savefig(saveFile,bbox_inches="tight")
-#            
-#        return y_clusters
-#    
-#    except:
-#        pass
-#        
-#    return y_clusters
 
 def transcriptionalPrograms(programs,reference_dictionary):
     transcriptionalPrograms = {}
@@ -2064,158 +1959,29 @@ def getStratifyingRegulons(states_list_1,states_list_2,reference_matrix,p=0.05,p
 
     return results
 
-#def inferSubtypes(referenceMatrix,primaryMatrix,secondaryMatrix,primaryDictionary,secondaryDictionary,minClusterSize=5,restricted_index=None,tertiaryMatrix=None,tertiaryDictionary=None):
-#
-#    t1 = time.time()
-#
-#    print('Beginning subtype inference')
-#    if restricted_index is not None:
-#        referenceMatrix = referenceMatrix.loc[restricted_index,:]
-#        primaryMatrix = primaryMatrix.loc[restricted_index,:]
-#        secondaryMatrix = secondaryMatrix.loc[restricted_index,:]
-#
-#    # perform initial subtype clustering
-#    similarityClusters = f1Decomposition(primaryDictionary,thresholdSFM=0.1)
-#    similarityClusters = [list(set(cluster)&set(referenceMatrix.columns)) for cluster in similarityClusters]
-#    initialClasses = [i for i in similarityClusters if len(i)>4]
-#    if len(initialClasses)==0:
-#        print('No subtypes were detected')
-#
-#    # expand initial subtype clusters
-#    centroidClusters, centroidMatrix = centroidExpansion(initialClasses,primaryMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
-#
-#    subcentroidClusters = []
-#    for c in range(len(centroidClusters)):
-#        tmp_cluster = centroidClusters[c]
-#        if len(tmp_cluster) < 2*minClusterSize:
-#            subcentroidClusters.append(tmp_cluster)
-#            continue
-#
-#        sampleDictionary = {key:list(set(tmp_cluster)&set(secondaryDictionary[key])) for key in secondaryDictionary}
-#        sampleMatrix = secondaryMatrix.loc[:,tmp_cluster]
-#
-#        # perform initial subtype clustering
-#        similarityClusters = f1Decomposition(sampleDictionary,thresholdSFM=0.1)
-#        initialClasses = [i for i in similarityClusters if len(i)>4]
-#        if len(initialClasses)==0:
-#            subcentroidClusters.append(tmp_cluster)
-#            continue
-#
-#        # expand initial subtype clusters
-#        tmp_centroidClusters, tmp_centroidMatrix = centroidExpansion(initialClasses,sampleMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
-#        z = len(tmp_centroidClusters)
-#        print(z)
-#        print(z-1,tmp_centroidClusters[z-1])
-#
-#        if len(tmp_centroidClusters) <= 1:
-#            subcentroidClusters.append(tmp_cluster)
-#            continue
-#
-#        for cc in range(len(tmp_centroidClusters)-1):
-#            new_cluster = tmp_centroidClusters[cc]
-#            if len(new_cluster) < minClusterSize:
-#                other_clusters = [tmp_centroidClusters[k] for k in range(len(tmp_centroidClusters)-1) if k!=cc]
-#                tmp_labels = np.array([k for k in range(len(tmp_centroidClusters)-1) if k!=cc])
-#                new_centroids = getCentroids(other_clusters,referenceMatrix)
-#                for sample in new_cluster:
-#                    pearson = pearson_array(np.array(new_centroids).T,np.array(referenceMatrix.loc[:,sample]))
-#                    top_hit = np.argsort(pearson)[-1]
-#                    top_label = tmp_labels[top_hit]
-#                    tmp_centroidClusters[top_label].append(sample)
-#                tmp_centroidClusters = [tmp_centroidClusters[ii] for ii in range(len(tmp_centroidClusters)) if ii != cc]
-#
-#            elif len(new_cluster) >= minClusterSize:
-#                continue
-#
-#        for ccc in range(len(tmp_centroidClusters)-1):
-#            subcentroidClusters.append(tmp_centroidClusters[ccc])
-#
-#        if c == len(centroidClusters)-1:
-#            subcentroidClusters.append(tmp_centroidClusters[-1])
-#
-#    if tertiaryMatrix is not None:
-#        
-#        centroidClusters2 = subcentroidClusters
-#        
-#        subcentroidClusters2 = []
-#        for c in range(len(centroidClusters2)):
-#            tmp_cluster = centroidClusters2[c]
-#            if len(tmp_cluster) < 2*minClusterSize:
-#                subcentroidClusters2.append(tmp_cluster)
-#                continue
-#            secondaryDictionary = tertiaryDictionary
-#            secondaryMatrix = tertiaryMatrix
-#            
-#            sampleDictionary = {key:list(set(tmp_cluster)&set(secondaryDictionary[key])) for key in secondaryDictionary}
-#            sampleMatrix = secondaryMatrix.loc[:,tmp_cluster]
-#    
-#            # perform initial subtype clustering
-#            similarityClusters = f1Decomposition(sampleDictionary,thresholdSFM=0.1)
-#            initialClasses = [i for i in similarityClusters if len(i)>4]
-#            if len(initialClasses)==0:
-#                subcentroidClusters2.append(tmp_cluster)
-#                continue
-#    
-#            # expand initial subtype clusters
-#            tmp_centroidClusters, tmp_centroidMatrix = centroidExpansion(initialClasses,sampleMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
-#    
-#            if len(tmp_centroidClusters) <= 1:
-#                subcentroidClusters2.append(tmp_cluster)
-#                continue
-#    
-#            for cc in range(len(tmp_centroidClusters)-1):
-#                new_cluster = tmp_centroidClusters[cc]
-#                if len(new_cluster) < minClusterSize:
-#                    other_clusters = [tmp_centroidClusters[k] for k in range(len(tmp_centroidClusters)-1) if k!=cc]
-#                    tmp_labels = np.array([k for k in range(len(tmp_centroidClusters)-1) if k!=cc])
-#                    new_centroids = getCentroids(other_clusters,referenceMatrix)
-#                    for sample in new_cluster:
-#                        pearson = pearson_array(np.array(new_centroids).T,np.array(referenceMatrix.loc[:,sample]))
-#                        top_hit = np.argsort(pearson)[-1]
-#                        top_label = tmp_labels[top_hit]
-#                        tmp_centroidClusters[top_label].append(sample)
-#                    tmp_centroidClusters = [tmp_centroidClusters[ii] for ii in range(len(tmp_centroidClusters)) if ii != cc]
-#    
-#                elif len(new_cluster) >= minClusterSize:
-#                    continue
-#    
-#            for ccc in range(len(tmp_centroidClusters)-1):
-#                subcentroidClusters2.append(tmp_centroidClusters[ccc])
-#    
-#            if c == len(centroidClusters2)-1:
-#                subcentroidClusters2.append(tmp_centroidClusters[-1])
-#                
-#        t2 = time.time()
-#        print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
-#
-#        return subcentroidClusters2, subcentroidClusters, centroidClusters
-#        
-#        
-#    t2 = time.time()
-#    print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
-#
-#    return subcentroidClusters, centroidClusters
 
 def inferSubtypes(referenceMatrix,primaryMatrix,secondaryMatrix,primaryDictionary,secondaryDictionary,minClusterSize=5,restricted_index=None):
 
     t1 = time.time()
 
-    print('Beginning subtype inference')
+    LOGGER.info('Beginning subtype inference')
     if restricted_index is not None:
         referenceMatrix = referenceMatrix.loc[restricted_index,:]
         primaryMatrix = primaryMatrix.loc[restricted_index,:]
         secondaryMatrix = secondaryMatrix.loc[restricted_index,:]
-    
+
     # perform initial subtype clustering
     similarityClusters = f1Decomposition(primaryDictionary,thresholdSFM=0.1)
     similarityClusters = [list(set(cluster)&set(referenceMatrix.columns)) for cluster in similarityClusters]
     initialClasses = [i for i in similarityClusters if len(i)>4]
     if len(initialClasses)==0:
-        print('No subtypes were detected')
-    
+        LOGGER.info('No subtypes were detected')
+
     # expand initial subtype clusters
+    LOGGER.info('expand initial subtype clusters')
     centroidClusters, centroidMatrix = centroidExpansion(initialClasses,primaryMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
-    
+
+    LOGGER.info('fill sub centroid clusters')
     subcentroidClusters = []
     for c in range(len(centroidClusters)):
         tmp_cluster = centroidClusters[c]
@@ -2223,30 +1989,30 @@ def inferSubtypes(referenceMatrix,primaryMatrix,secondaryMatrix,primaryDictionar
             if len(tmp_cluster)>0:
                 subcentroidClusters.append(tmp_cluster)
             continue
-    
+
         sampleDictionary = {key:list(set(tmp_cluster)&set(secondaryDictionary[key])) for key in secondaryDictionary}
         sampleMatrix = secondaryMatrix.loc[:,tmp_cluster]
-    
+
         # perform initial subtype clustering
         similarityClusters = f1Decomposition(sampleDictionary,thresholdSFM=0.1)
         initialClasses = [i for i in similarityClusters if len(i)>4]
         if len(initialClasses)==0:
             subcentroidClusters.append(tmp_cluster)
             continue
-    
+
         # expand initial subtype clusters
         tmp_centroidClusters, tmp_centroidMatrix = centroidExpansion(initialClasses,sampleMatrix,f1Threshold = 0.1,returnCentroids=True) #0.3
         tmp_centroidClusters.sort(key=len,reverse=True)
-        
+
         if len(tmp_centroidClusters) <= 1:
             subcentroidClusters.append(tmp_cluster)
             continue
-    
-        for cc in range(len(tmp_centroidClusters)):            
+
+        for cc in range(len(tmp_centroidClusters)):
             new_cluster = tmp_centroidClusters[cc]
             if len(new_cluster)==0:
                 continue
-            if len(new_cluster) < minClusterSize: 
+            if len(new_cluster) < minClusterSize:
                 if cc == 0:
                     other_clusters = []
                     other_clusters.append(np.hstack(tmp_centroidClusters))
@@ -2261,21 +2027,19 @@ def inferSubtypes(referenceMatrix,primaryMatrix,secondaryMatrix,primaryDictionar
                     other_clusters[top_hit].append(sample)
                 tmp_centroidClusters = other_clusters
                 break
-    
+
             elif len(new_cluster) >= minClusterSize:
                 continue
-    
+
         for ccc in range(len(tmp_centroidClusters)):
             if len(tmp_centroidClusters[ccc]) == 0:
                 continue
             subcentroidClusters.append(tmp_centroidClusters[ccc])
-    
     t2 = time.time()
-    print("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
-    
+    LOGGER.info("completed subtype inference in {:.2f} minutes".format((t2-t1)/60.))
     return subcentroidClusters, centroidClusters
 
-    
+
 # =============================================================================
 # Functions used for cluster analysis
 # =============================================================================
@@ -2347,8 +2111,9 @@ def enrichmentAnalysis(dict_,reference_dict,reciprocal_dict,genes_with_expressio
         enrichmentOutput = multiprocess(parallelEnrichment,tasks)
         combinedResults = condenseOutput(enrichmentOutput)
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         combinedResults = {}
-    
+
     t2 = time.time()
     print('completed enrichment analysis in {:.2f} seconds'.format(t2-t1))
 
@@ -2585,6 +2350,7 @@ def survivalMedianAnalysisDirect(median_df,SurvivalDf):
         coxResults[k] = (cox_hr, cox_p)
         
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         coxResults[k] = (0,1)
         
     return coxResults
@@ -2667,6 +2433,7 @@ def survivalMembershipAnalysis(task):
             cox_p = tmpcph.loc[key,"p"]  
             coxResults[key] = (cox_hr, cox_p)
         except:
+            tb.print_exc()  # WW: don't just silence exceptions !!
             coxResults[key] = (0, 1)
     return coxResults
 
@@ -2689,8 +2456,9 @@ def survivalMembershipAnalysisDirect(membership_df,SurvivalDf):
         cox_hr = tmpcph.loc[k,"z"]
         cox_p = tmpcph.loc[k,"p"]  
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         cox_hr, cox_p = (0,1)
-        
+
     return cox_hr, cox_p
 
 def parallelMemberSurvivalAnalysis(membershipDf,numCores=5,survivalPath=None,survivalData=None):
@@ -2736,6 +2504,7 @@ def survivalAnalysis(task):
             cox_p = tmpcph.loc["value","p"] 
             coxResults[key] = (cox_hr, cox_p)
         except:
+            tb.print_exc()  # WW: don't just silence exceptions !!
             coxResults[key] = (0, 1)
         
     return coxResults
@@ -3846,6 +3615,7 @@ def gene_conversion(gene_list,input_type="ensembl.gene", output_type="symbol",li
                 for j in range(0,len(tmp1)):            
                     dict_[tmp].append(str(tmp1[j]).split("'")[3])
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         return gene_query
     
     return dict_
@@ -3857,8 +3627,9 @@ def swarmplot(samples,survival,savefile,ylabel="Relative risk",labels = None):
     try:
         allSamples = np.hstack(samples)
     except:
-        pass
-    
+        # WW: don't just silently ignore Exceptions !!!
+        tb.print_exc()
+
     survival_samples = list(set(survival.index)&set(allSamples))
     srv = survival.loc[survival_samples,:]
     guan_srv = pd.DataFrame(srv.loc[:,"GuanScore"])
@@ -4718,6 +4489,7 @@ def differentialActivity(regulon_matrix,reference_matrix,baseline_patients,relap
         if savefile is not None:
             plt.savefig(savefile,bbox_inches="tight")
     except:
+        tb.print_exc()  # WW: don't just silence exceptions !!
         print('Error: Analysis was successful, but could not generate plot')
 
     return volcano_data_

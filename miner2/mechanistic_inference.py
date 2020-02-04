@@ -13,7 +13,7 @@ from miner2 import util, coexpression
 def axis_tfs(axesDf, tfList, expressionData, correlation_threshold=0.3):
     axesArray = numpy.array(axesDf.T)
     if correlation_threshold > 0:
-        tfArray = numpy.array(expressionData.loc[tfList,:])
+        tfArray = numpy.array(expressionData.reindex(tfList))
     axes = numpy.array(axesDf.columns)
     tfDict = {}
 
@@ -29,7 +29,11 @@ def axis_tfs(axesDf, tfList, expressionData, correlation_threshold=0.3):
 
     for axis in range(axesArray.shape[0]):
         tfDict_key = axes[axis]
+        # WW: the problem here is that tfCorrelation can have NaN values which warnings
+        # are shown for
         tfCorrelation = coexpression.pearson_array(tfArray,axesArray[axis,:])
+        #print('tfCorrelation: ' + str(numpy.abs(tfCorrelation)))
+        #print('correlation.threshold: ' + str(correlation_threshold))
         tfDict[tfDict_key] = tfs[numpy.where(numpy.abs(tfCorrelation) >= correlation_threshold)[0]]
     return tfDict
 

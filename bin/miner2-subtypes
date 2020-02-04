@@ -14,12 +14,24 @@ from miner2 import preprocess, biclusters, subtypes, util
 from miner2 import GIT_SHA, __version__ as pkg_version
 from miner2 import miner
 
+import logging
+
+
 DESCRIPTION = """miner-subtypes - MINER compute sample subtypes
 MINER Version %s (Git SHA %s)""" % (pkg_version, GIT_SHA.replace('$Id: ', '').replace(' $', ''))
 
 MIN_CORRELATION = 0.2
 
+LOG_FORMAT = '%(asctime)s %(message)s'
+DATE_FORMAT = '%Y-%m-%d %H:%M:%S \t'
+
 if __name__ == '__main__':
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
+    LOGGER = logging.getLogger()
+    LOGGER.addHandler(stream_handler)
+    LOGGER.setLevel(logging.INFO)
+
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=DESCRIPTION)
     parser.add_argument('expfile', help="input matrix")
@@ -40,6 +52,7 @@ if __name__ == '__main__':
     with open(os.path.join(args.outdir, 'run_info.txt'), 'w') as outfile:
         util.write_dependency_infos(outfile)
 
+    LOGGER.info('load and setup data')
     exp_data, conv_table = preprocess.main(args.expfile, args.mapfile, do_preprocess_tpm=(not args.skip_tpm))
     bkgd = preprocess.background_df(exp_data)
 
@@ -60,10 +73,12 @@ if __name__ == '__main__':
 
 
     # perform initial subtype clustering
+    LOGGER.info('initial subtype clustering')
     similarity_clusters = subtypes.f1_decomposition(sample_dictionary, thresholdSFM=0.1)
     initial_classes = [i for i in similarity_clusters if len(i) > 4]
 
     # visualize initial results
+    LOGGER.info('visualize initial results')
     sample_freq_matrix = subtypes.sample_coincidence_matrix(sample_dictionary,
                                                             freqThreshold=0.333,
                                                             frequencies=True)
@@ -76,6 +91,7 @@ if __name__ == '__main__':
                                                   "similarityMatrix_regulons.pdf"))
 
     # expand initial subtype clusters
+    LOGGER.info('expand initial subtype clusters')
     centroid_clusters, centroid_matrix = subtypes.centroid_expansion(initial_classes,
                                                                      sample_matrix,
                                                                      f1Threshold=0.1,
@@ -88,6 +104,7 @@ if __name__ == '__main__':
                                                          threshold=0.05)
 
     # visualize expanded subtype clusters
+    LOGGER.info('visualize expanded subtype clusters')
     subtypes.plot_similarity(similarity_matrix, mapped_samples,
                              vmin=0, vmax=0.333, title="Similarity matrix",
                              xlabel="Samples", ylabel="Samples", fontsize=14,
@@ -95,6 +112,7 @@ if __name__ == '__main__':
                              savefig=os.path.join(args.outdir,"centroidClusters_regulons.pdf"))
 
     # Generate heatmaps of module activity
+    LOGGER.info('generate heatmaps of module activity')
     ordered_overexpressed_members = subtypes.order_membership(centroid_matrix,
                                                               sample_matrix,
                                                               mapped_clusters,
@@ -110,6 +128,7 @@ if __name__ == '__main__':
     ordered_dm.to_csv('subtypes_ordered_dm.csv')  # WW: Debug
 
     # Infer transcriptional programs and states
+    LOGGER.info('infer transcriptional programs and states')
     programs, states = subtypes.mosaic(dfr=ordered_dm, clusterList=centroid_clusters,
                                        minClusterSize_x=9, minClusterSize_y=5,
                                        allow_singletons=False, max_groups=50,
@@ -149,6 +168,7 @@ if __name__ == '__main__':
 
     # calculate percent of samples that fall into a state with >= minimum acceptable
     # number of samples
+    LOGGER.info('calculate percent of samples that fall into a state')
     groups = [states[i]
               for i in range(len(states))
               if len(states[i])>=int(np.ceil(0.01*exp_data.shape[1]))]
@@ -157,6 +177,7 @@ if __name__ == '__main__':
     print('sample coverage within sufficiently large states: {:.1f}%'.format(100*float(len(np.hstack(groups))) / exp_data.shape[1]))
 
     # write all transcriptional program genesets to text files for external analysis
+    LOGGER.info('write output')
     if not os.path.isdir(os.path.join(args.outdir, "transcriptional_programs_coexpressionModules")):
         os.mkdir(os.path.join(args.outdir,"transcriptional_programs_coexpressionModules"))
 
