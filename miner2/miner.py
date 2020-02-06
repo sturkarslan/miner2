@@ -2586,17 +2586,17 @@ def combinedStates(groups,ranked_groups,survivalDf,minSamples=4,maxStates=7):
     combined_indices = np.concatenate([combined_indices_high,combined_indices_low])
 
     return combined_states, combined_indices
- 
+
 # =============================================================================
 # Functions used for causal inference
 # =============================================================================
 
-def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,mutation_matrix,resultsDirectory,minRegulons=1,significance_threshold=0.05,causalFolder="causal_results"):
-    
-    if not os.path.isdir(resultsDirectory):
-        os.mkdir(resultsDirectory)    
-    # create results directory
-    causal_path = os.path.join(resultsDirectory,causalFolder)
+MIN_NP_FLOAT = np.nextafter(0, 1)
+
+def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,mutation_matrix,resultsDirectory,minRegulons=1,
+                          significance_threshold=0.05,causalFolder="causal_results", min_phenotype_2=10):
+
+    causal_path = os.path.join(resultsDirectory, causalFolder)
     if not os.path.isdir(causal_path):
         os.mkdir(causal_path)
 
@@ -2613,7 +2613,7 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
     rs_1 = []
     ps_1 = []
     index_1 = []
-    
+
     missing_tfs = list(set(regulon_df_bcindex.loc[:,"Regulator"])-set(expression_matrix.index))
     for key in list(set(regulon_df_bcindex.index)):
         e_gene = reference_matrix.loc[str(key),:]
@@ -2636,22 +2636,24 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
     correlation_df_regulator_index = correlation_df_bcindex.copy() # Table
     correlation_df_regulator_index.index = correlation_df_regulator_index["Regulator"]
 
-    ###
+    skipped_iterations = 0
     for mut_ix in range(mutation_matrix.shape[0]):
-
         mutation_name = mutation_matrix.index[mut_ix]
-
-        phenotype_2 = mutation_matrix.columns[mutation_matrix.loc[mutation_name,:]==1]
+        phenotype_2 = mutation_matrix.columns[mutation_matrix.loc[mutation_name,:] == 1]
         phenotype_1 = list(set(mutation_matrix.columns)-set(phenotype_2))
         phenotype_2 = list(set(phenotype_2)&set(reference_matrix.columns))
         phenotype_1 = list(set(phenotype_1)&set(reference_matrix.columns))
-        
-        regulon_ttests = pd.DataFrame(
-            np.vstack(
-                stats.ttest_ind(reference_matrix.loc[:,phenotype_2],reference_matrix.loc[:,phenotype_1],equal_var=False,axis=1)
-            ).T
-        )
+        num_phenotype_2 = len(phenotype_2)
 
+        if num_phenotype_2 < min_phenotype_2:
+            #LOGGER.warning('# phenotype_2 (%d) < %d, skip' % (num_phenotype_2, min_phenotype_2))
+            skipped_iterations += 1
+            continue
+
+        a = reference_matrix.loc[:,phenotype_2]
+        b = reference_matrix.loc[:,phenotype_1]
+        tt_result = stats.ttest_ind(a, b, equal_var=False, axis=1)
+        regulon_ttests = pd.DataFrame(np.vstack(tt_result).T)
         regulon_ttests.index = reference_matrix.index
         regulon_ttests.columns = ["Regulon_t-test_t","Regulon_t-test_p"] # Table1: eigengenes ttests
 
@@ -2674,6 +2676,9 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
 
                 for regulon_ in regulons_:
                     t, p = list(regulon_ttests.loc[regulon_,:])
+                    if p == 0.0:
+                        LOGGER.warning('passing p == 0 to numpy.log10() !!! Replacing with a valid value')
+                        p = MIN_NP_FLOAT
                     tmp_neglogp = -np.log10(p)
                     neglogps.append(tmp_neglogp)
                     ts.append(t)
@@ -2700,13 +2705,15 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
                 d_ts = []
                 for downstream_regulon_ in downstream_regulons:
                     dt, dp = list(regulon_ttests.loc[downstream_regulon_,:])
+                    if dp == 0.0:
+                        LOGGER.warning('passing dp == 0 to numpy.log10() !!! Replacing with a valid value')
+                        dp = MIN_NP_FLOAT
                     tmp_neglogp = -np.log10(dp)
                     d_neglogps.append(tmp_neglogp)
                     d_ts.append(dt)
 
                 d_neglogps = np.array(d_neglogps)
                 d_ts = np.array(d_ts)
-
                 mask = np.where(d_neglogps >= -np.log10(significance_threshold))[0]
                 if len(mask) == 0:
                     continue
@@ -2731,11 +2738,10 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
                 mutation_regulator_edge_direction = np.array([mean_ts/np.abs(mean_ts) for i in range(len(alignment_mask))])
                 mutation_regulator_edge_ps = np.array([mean_significance for i in range(len(alignment_mask))])
                 regulator_bicluster_rs = significant_Rs[alignment_mask]
-                regulator_bicluster_ps = significant_ps[alignment_mask]    
+                regulator_bicluster_ps = significant_ps[alignment_mask]
                 bicluster_ts = significant_regulon_ts[alignment_mask]
-                bicluster_ps = significant_regulon_ps[alignment_mask]  
+                bicluster_ps = significant_regulon_ps[alignment_mask]
                 fraction_aligned = np.array([len(alignment_mask)/float(len(mask)) for i in range(len(alignment_mask))])
-
 
                 results_ = pd.DataFrame(
                     np.vstack(
@@ -2749,7 +2755,8 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
                             regulator_bicluster_ps,
                             bicluster_ts,
                             bicluster_ps,
-                            fraction_aligned
+                            fraction_aligned,
+                            [num_phenotype_2] * len(mutation_list)
                         ]
                     ).T
                 )
@@ -2764,11 +2771,10 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
                     "RegulatorRegulon_Spearman_p-value",
                     "Regulon_stratification_t-statistic",
                     "-log10(p)_Regulon_stratification",
-                    "Fraction_of_edges_correctly_aligned"
+                    "Fraction_of_edges_correctly_aligned",
+                    "PatientsWithMutation"
                 ]
-
                 results_.index = bicluster_list
-
                 result_dfs.append(results_)
 
             elif mean_significance < -np.log10(significance_threshold):
@@ -2780,15 +2786,12 @@ def causalNetworkAnalysis(regulon_matrix,expression_matrix,reference_matrix,muta
             causal_output = result_dfs[0]
         if len(result_dfs) > 1:
             causal_output = pd.concat(result_dfs,axis=0)
-            
+
         output_file = ("").join([mutation_name,"_causal_results",".csv"])
         causal_output.to_csv(os.path.join(causal_path,output_file))
 
-
     t2 = time.time()
-
-    print('completed causal analysis in {:.2f} minutes'.format((t2-t1)/60.))
-    
+    logging.info('completed causal analysis in %.2f minutes, skipped %d mutations' % ((t2-t1)/60., skipped_iterations))
     return
 
 def causalNetworkImpact(target_genes,regulon_matrix,expression_matrix,reference_matrix,mutation_matrix,resultsDirectory,minRegulons=1,significance_threshold=0.05,causalFolder="causal_results",return_df=False,tag=None):
