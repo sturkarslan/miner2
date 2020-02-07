@@ -105,6 +105,8 @@ if __name__ == '__main__':
 
     # Perform causal analysis for each mutation matrix
     result_dir = os.path.join(args.outdir, "causal_analysis")
+    if not os.path.isdir(result_dir):
+        os.mkdir(result_dir)
 
     if args.common_mutations is not None:
         print('causal network analysis for common mutations')

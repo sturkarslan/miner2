@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(8,8))
     plt.style.use('seaborn-whitegrid')
-    plt.xlim(-100,2000)
+    #plt.xlim(-100,2000)
 
     for key in keys:
         cluster = np.array(exp_data.loc[pr_genes[key],:])
@@ -169,7 +169,11 @@ if __name__ == '__main__':
 
         groups = [membership_df.index[np.where(membership_df[key]==1)[0]]]
         labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
-        miner.kmplot(srv=srv, groups=groups, labels=labels, xlim_=(-100,1750),
+        #print("groups: %d" % len(groups[0]))
+        #print("labels: %d" % len(labels[0]))
+
+        miner.kmplot(srv=srv, groups=groups, labels=labels,
+                     #xlim_=(-100,1750),
                      filename=None, lw=2, color="gray", alpha=0.3)
 
     key_min = cox_programs_output.index[0]
@@ -188,8 +192,11 @@ if __name__ == '__main__':
 
     groups = [membership_df.index[np.where(membership_df[key_min]==1)[0]]]
     labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+    #print("groups: %d" % len(groups[0]))
+    #print("labels: %d" % len(labels[0]))
 
-    miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+    miner.kmplot(srv=srv,groups=groups,labels=labels,
+                 #xlim_=(-100,1750),
                  filename=None,lw=2,color="blue",alpha=1)
 
     cluster = np.array(exp_data.loc[pr_genes[key_max],:])
@@ -205,8 +212,11 @@ if __name__ == '__main__':
 
     groups = [membership_df.index[np.where(membership_df[key_max]==1)[0]]]
     labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+    #print("groups: %d" % len(groups[0]))
+    #print("labels: %d" % len(labels[0]))
 
-    miner.kmplot(srv=srv, groups=groups, labels=labels, xlim_=(-100,1750),
+    miner.kmplot(srv=srv, groups=groups, labels=labels,
+                 #xlim_=(-100,1750),
                  filename=None, lw=2, color="red",alpha=1)
 
     plt.savefig(os.path.join(args.outdir,"kmplots_programs.pdf"), bbox_inches="tight")
@@ -215,7 +225,7 @@ if __name__ == '__main__':
     # Kaplan-Meier plot of all programs (median expression)
     plt.figure(figsize=(8,8))
     plt.style.use('seaborn-whitegrid')
-    plt.xlim(-100,2000)
+    #plt.xlim(-100,2000)
 
     srv = guanSurvivalDfMMRF.copy()
     for key in range(len(states_list)):
@@ -228,8 +238,11 @@ if __name__ == '__main__':
 
         groups = [median_df.index[np.where(median_df[key]==1)[0]]]
         labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+        #print("groups: %d" % len(groups[0]))
+        #print("labels: %d" % len(labels[0]))
 
-        miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+        miner.kmplot(srv=srv,groups=groups,labels=labels,
+                     #xlim_=(-100,1750),
                      filename=None,lw=2,color="gray",alpha=0.3)
 
     try:
@@ -245,8 +258,11 @@ if __name__ == '__main__':
 
             groups = [median_df.index[np.where(median_df[key]==1)[0]]]
             labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+            #print("groups: %d" % len(groups[0]))
+            #print("labels: %d" % len(labels[0]))
 
-            miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+            miner.kmplot(srv=srv,groups=groups,labels=labels,
+                         #xlim_=(-100,1750),
                          filename=None,lw=2,color="red",alpha=1)
 
         # Combine high-risk states
@@ -262,8 +278,11 @@ if __name__ == '__main__':
 
             groups = [median_df.index[np.where(median_df[key]==1)[0]]]
             labels = ["{0}: {1:.2f}".format(str(key), cox_hr)]
+            #print("groups: %d" % len(groups[0]))
+            #print("labels: %d" % len(labels[0]))
 
-            miner.kmplot(srv=srv,groups=groups,labels=labels,xlim_=(-100,1750),
+            miner.kmplot(srv=srv,groups=groups,labels=labels,
+                         #xlim_=(-100,1750),
                          filename=None,lw=2,color="blue",alpha=1)
 
         plt.savefig(os.path.join(args.outdir, "kmplots_states.pdf"), bbox_inches="tight")
